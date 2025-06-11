@@ -3,6 +3,7 @@ import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import streamlit as st
 
 # Ticker mapping - moved from Main.py
 TICKER_TO_ID_MAPPING = {
@@ -439,3 +440,57 @@ def get_coin_historical_prices(coin_id, days=30):
     except Exception as e:
         print(f"Error getting coin historical prices: {e}")
         return []
+
+def get_google_sheets_client():
+    """Tạo Google Sheets client với debug info"""
+    try:
+        # Debug: Check if secrets exist
+        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+            st.write("✅ Found GCP credentials in secrets")
+            credentials_info = dict(st.secrets["gcp_service_account"])
+            
+            # Debug: Check key fields
+            required_fields = ['type', 'project_id', 'private_key', 'client_email']
+            missing_fields = [field for field in required_fields if field not in credentials_info]
+            
+            if missing_fields:
+                st.error(f"❌ Missing fields in credentials: {missing_fields}")
+                return None
+                
+            scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+            credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_info, scope)
+            client = gspread.authorize(credentials)
+            
+            st.success("✅ Google Sheets client created successfully!")
+            return client
+        else:
+            st.warning("⚠️ No GCP credentials found in secrets, using sample data")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Error creating Google Sheets client: {str(e)}")
+        return None
+
+def load_portfolio_data():
+    """Load portfolio với debug info"""
+    try:
+        client = get_google_sheets_client()
+        
+        if client is None:
+            st.info("📊 Using sample portfolio data")
+            return get_sample_portfolio_data()
+        
+        # Try to open the spreadsheet
+        spreadsheet = client.open("Crypto Portfolio Tracker")
+        worksheet = spreadsheet.sheet1
+        
+        # Get data
+        data = worksheet.get_all_records()
+        st.success(f"✅ Loaded {len(data)} coins from Google Sheets")
+        
+        return data
+        
+    except Exception as e:
+        st.error(f"❌ Error loading portfolio: {str(e)}")
+        st.info("📊 Falling back to sample data")
+        return get_sample_portfolio_data()
