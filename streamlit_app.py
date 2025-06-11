@@ -252,7 +252,7 @@ def main():
     st.sidebar.markdown("### ⏰ Last Updated")
     st.sidebar.markdown(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # 🔧 DEBUG PANEL - LUÔN HIỂN THỊ
+    # 🔧 DEBUG PANEL - HOÀN CHỈNH
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔧 Debug Panel")
     
@@ -270,6 +270,7 @@ def main():
         
         st.sidebar.markdown("#### 🌐 API Connection Tests")
         
+        # HOÀN CHỈNH TEST COINGECKO
         if st.sidebar.button("🔍 Test CoinGecko API"):
             try:
                 st.sidebar.write("Testing CoinGecko API...")
@@ -293,15 +294,14 @@ def main():
             except Exception as e:
                 st.sidebar.error(f"❌ Connection failed: {str(e)}")
         
+        # TEST GOOGLE SHEETS
         if st.sidebar.button("📊 Test Google Sheets"):
             try:
-                # Test basic connection
                 portfolio = data_access.get_portfolio()
                 if portfolio and len(portfolio) > 0:
                     st.sidebar.success("✅ Google Sheets OK")
                     st.sidebar.write(f"Found {len(portfolio)} coins")
                     
-                    # Check if real or sample data
                     first_coin = portfolio[0]
                     if first_coin.get("Coin ID") == "BTC" and first_coin.get("Current Price") == 47000.0:
                         st.sidebar.warning("⚠️ Using SAMPLE data")
@@ -314,26 +314,31 @@ def main():
         
         st.sidebar.markdown("#### ⚡ Force Actions")
         
+        # FORCE LIVE PRICES - HOÀN CHỈNH
         if st.sidebar.button("🔄 Force Live Prices"):
             try:
                 st.sidebar.write("Fetching live prices...")
                 coin_ids = ["BTC", "ETH", "SOL", "DOT", "ADA"]
+                
+                # SỬ DỤNG PRICE_FETCHER_FALLBACK
                 live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
                 st.sidebar.success("✅ Live prices fetched!")
                 st.sidebar.json(live_prices)
                 
-                # Clear cache to force refresh
+                # Clear cache
                 st.cache_data.clear()
+                st.sidebar.info("Cache cleared - refresh page to see updates")
                 
             except Exception as e:
                 st.sidebar.error(f"❌ Error: {str(e)}")
         
+        # CLEAR CACHE
         if st.sidebar.button("🗑️ Clear Cache"):
             st.cache_data.clear()
             st.sidebar.success("✅ Cache cleared!")
             st.sidebar.info("Refresh page to reload data")
         
-        # Show raw portfolio data
+        # RAW DATA
         if st.sidebar.checkbox("📄 Show Raw Portfolio Data"):
             try:
                 portfolio = data_access.get_portfolio()

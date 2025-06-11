@@ -76,28 +76,89 @@ except Exception as e:
 
 # Các hàm thao tác với dữ liệu - thêm error handling cho Streamlit
 def get_portfolio():
-    """Get portfolio với option cho live prices"""
+    """Updated to optionally use live prices"""
     try:
-        # Check if we should use live prices
-        use_live_prices = st.sidebar.checkbox("🔴 Use Live Prices", value=False)
+        # Try to use live prices by default
+        return get_portfolio_with_live_prices()
+    except:
+        # Fallback to original method
+        return get_sample_portfolio_with_live_prices()
+
+def get_portfolio_with_live_prices():
+    """Get portfolio with FORCED live price updates"""
+    try:
+        # Get base portfolio
+        portfolio = get_portfolio()
         
-        # Load base portfolio data
-        if client and portfolio_sheet:
-            portfolio = portfolio_sheet.get_all_records()
-            if not portfolio:
-                portfolio = get_sample_portfolio()
-        else:
-            portfolio = get_sample_portfolio()
+        if not portfolio:
+            return get_sample_portfolio_with_live_prices()
         
-        # Update với live prices nếu được enable
-        if use_live_prices:
-            portfolio = update_portfolio_with_live_prices(portfolio)
+        # Extract coin IDs
+        coin_ids = [coin.get("Coin ID") for coin in portfolio if coin.get("Coin ID")]
+        
+        if not coin_ids:
+            return portfolio
+        
+        # Fetch live prices
+        live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
+        
+        # Update portfolio with live prices
+        for coin in portfolio:
+            coin_id = coin.get("Coin ID")
+            if coin_id and coin_id in live_prices:
+                coin["Current Price"] = live_prices[coin_id]["current_price"]
+                coin["Market Cap"] = live_prices[coin_id]["market_cap"]
         
         return portfolio
         
     except Exception as e:
-        st.error(f"❌ Error in get_portfolio: {str(e)}")
-        return get_sample_portfolio()
+        return get_sample_portfolio_with_live_prices()
+
+def get_sample_portfolio_with_live_prices():
+    """Sample portfolio with REAL live prices"""
+    try:
+        # Fetch real prices for sample coins
+        coin_ids = ["BTC", "ETH", "SOL"]
+        live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
+        
+        return [
+            {
+                "Coin ID": "BTC",
+                "Coin Name": "Bitcoin",
+                "Quantity": 0.5,
+                "Avg Buy Price": 45000,
+                "Current Price": live_prices.get("BTC", {}).get("current_price", 67000),
+                "Market Cap": live_prices.get("BTC", {}).get("market_cap", 1320000000000)
+            },
+            {
+                "Coin ID": "ETH",
+                "Coin Name": "Ethereum", 
+                "Quantity": 2.0,
+                "Avg Buy Price": 2800,
+                "Current Price": live_prices.get("ETH", {}).get("current_price", 3500),
+                "Market Cap": live_prices.get("ETH", {}).get("market_cap", 420000000000)
+            },
+            {
+                "Coin ID": "SOL",
+                "Coin Name": "Solana",
+                "Quantity": 10.0,
+                "Avg Buy Price": 45,
+                "Current Price": live_prices.get("SOL", {}).get("current_price", 65),
+                "Market Cap": live_prices.get("SOL", {}).get("market_cap", 25000000000)
+            }
+        ]
+    except:
+        # Fallback static data
+        return [
+            {
+                "Coin ID": "BTC",
+                "Coin Name": "Bitcoin",
+                "Quantity": 0.5,
+                "Avg Buy Price": 45000,
+                "Current Price": 67000,
+                "Market Cap": 1320000000000
+            }
+        ]
 
 def get_potential_coins():
     try:
