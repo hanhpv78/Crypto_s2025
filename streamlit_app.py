@@ -228,18 +228,19 @@ def main():
     # Sidebar
     st.sidebar.title("🔧 Dashboard Controls")
     
-    # Connection status check
+    # Connection status check - KHÔNG RETURN KHI LỖI
     st.sidebar.markdown("### 📊 System Status")
+    google_sheets_error = None
     try:
         # Test Google Sheets connection
         test_portfolio = data_access.get_portfolio()
         st.sidebar.markdown('<div class="status-success">✅ Google Sheets Connected</div>', unsafe_allow_html=True)
         st.sidebar.markdown(f"📈 Found {len(test_portfolio)} coins in portfolio")
     except Exception as e:
+        google_sheets_error = str(e)
         st.sidebar.markdown('<div class="status-error">❌ Google Sheets Error</div>', unsafe_allow_html=True)
         st.sidebar.error(f"Error: {str(e)}")
-        st.error("🚨 Cannot connect to Google Sheets. Please check your credentials.")
-        return
+        # KHÔNG return ở đây - tiếp tục hiển thị debug panel
     
     # Manual refresh controls
     st.sidebar.markdown("### 🔄 Data Controls")
@@ -251,7 +252,7 @@ def main():
     st.sidebar.markdown("### ⏰ Last Updated")
     st.sidebar.markdown(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # 🔧 THÊM DEBUG PANEL VÀO ĐÂY (trong main function)
+    # 🔧 DEBUG PANEL - LUÔN HIỂN THỊ
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔧 Debug Panel")
     
@@ -334,20 +335,35 @@ def main():
         
         # Show raw portfolio data
         if st.sidebar.checkbox("📄 Show Raw Portfolio Data"):
-            portfolio = data_access.get_portfolio()
-            st.sidebar.json(portfolio)
+            try:
+                portfolio = data_access.get_portfolio()
+                st.sidebar.json(portfolio)
+            except Exception as e:
+                st.sidebar.error(f"Error loading portfolio: {str(e)}")
     
-    # Load data
-    portfolio, potential_coins, error = load_portfolio_data()
+    # Main content - CÓ THỂ FAIL NHƯNG SIDEBAR VẪN HIỂN THỊ
+    if google_sheets_error:
+        st.error(f"🚨 Cannot connect to Google Sheets: {google_sheets_error}")
+        st.info("🔧 Use the Debug Panel in sidebar to troubleshoot")
+        
+        # Hiển thị sample data thay vì crash
+        st.warning("📊 Displaying sample data for demonstration")
+        portfolio = get_sample_data()
+        potential_coins = []
+    else:
+        # Load real data
+        portfolio, potential_coins, error = load_portfolio_data()
+        if error:
+            st.error(f"❌ Error loading data: {error}")
+            portfolio = get_sample_data()
+            potential_coins = []
+    
+    # Continue với analytics và rest of dashboard...
     analytics, analytics_error = load_analytics_data()
     
-    if error:
-        st.error(f"❌ Error loading data: {error}")
-        return
-    
     if not portfolio:
-        st.warning("⚠️ No portfolio data found. Please check your Google Sheets connection and data.")
-        return
+        st.warning("⚠️ No portfolio data found. Using sample data.")
+        portfolio = get_sample_data()
     
     # Metrics dashboard
     col1, col2, col3, col4 = st.columns(4)
