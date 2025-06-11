@@ -156,3 +156,33 @@ class price_fetcher_fallback:
     async def fetch_coin_prices_with_fallback(coin_ids):
         print(f"Mock fetch_coin_prices_with_fallback called with {coin_ids}")
         return {coin_id: {"current_price": 0} for coin_id in coin_ids}  # Trả về giá = 0
+
+def get_potential_coins_with_live_prices():
+    """Get potential coins with live prices"""
+    try:
+        potential_data = get_potential_coins()
+        
+        if not potential_data:
+            return []
+        
+        # Lấy coin IDs từ potential coins
+        coin_ids = [coin.get("Coin ID", "") for coin in potential_data if coin.get("Coin ID")]
+        
+        if coin_ids:
+            # Fetch live prices
+            live_prices = fetch_current_prices(coin_ids)
+            
+            # Update prices
+            for coin in potential_data:
+                coin_id = coin.get("Coin ID", "").lower()
+                if coin_id in live_prices:
+                    price_data = live_prices[coin_id]
+                    coin["Current Price"] = price_data.get("current_price", 0)
+                    coin["Market Cap"] = price_data.get("market_cap", 0)
+                    coin["Price Change 24h"] = price_data.get("price_change_24h", 0)
+        
+        return potential_data
+        
+    except Exception as e:
+        print(f"Error getting potential coins with live prices: {e}")
+        return get_potential_coins()

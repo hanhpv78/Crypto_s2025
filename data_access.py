@@ -85,10 +85,42 @@ def get_portfolio():
 def get_potential_coins():
     if potential_coins_sheet is not None:
         try:
-            return potential_coins_sheet.get_all_records()
+            records = potential_coins_sheet.get_all_records()
+            if records:  # Nếu có data từ Google Sheets
+                return records
         except Exception as e:
             print(f"Error reading potential coins: {e}")
-    return []
+    
+    # Sample data nếu không có Google Sheets hoặc sheet trống
+    return [
+        {
+            "Coin ID": "solana",
+            "Coin Name": "Solana", 
+            "Current Price": 0,  # Sẽ được update bởi live prices
+            "Market Cap": 0,
+            "Recommendation": "BUY",
+            "Date Added": "2025-06-10",
+            "Reason": "Strong ecosystem growth and DeFi adoption"
+        },
+        {
+            "Coin ID": "polkadot", 
+            "Coin Name": "Polkadot",
+            "Current Price": 0,
+            "Market Cap": 0,
+            "Recommendation": "HOLD",
+            "Date Added": "2025-06-08", 
+            "Reason": "Waiting for parachain development progress"
+        },
+        {
+            "Coin ID": "chainlink",
+            "Coin Name": "Chainlink",
+            "Current Price": 0,
+            "Market Cap": 0,
+            "Recommendation": "BUY",
+            "Date Added": "2025-06-05",
+            "Reason": "Oracle market leader with expanding partnerships"
+        }
+    ]
 
 def get_notification_settings():
     if notification_settings_sheet is not None:
