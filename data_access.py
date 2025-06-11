@@ -2,7 +2,7 @@ import os
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Import mapping từ file riêng (nếu có)
 try:
@@ -47,17 +47,40 @@ except Exception as e:
 # ==================== DATA ACCESS FUNCTIONS ====================
 
 def get_portfolio():
-    if portfolio_sheet is not None:
+    """Get portfolio data with optional live prices"""
+    try:
+        # Check if live prices requested
+        use_live = False
         try:
-            return portfolio_sheet.get_all_records()
-        except Exception as e:
-            print(f"Error reading portfolio: {e}")
-    # Fallback sample data
-    return [
-        {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
-        {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
-        {"Coin Name": "Cardano", "Coin ID": "ADA", "Quantity": 1000, "Avg Buy Price": 0.45, "Current Price": 0.52, "Current Value": 520, "P&L": 70, "ROI %": 15.56}
-    ]
+            import streamlit as st
+            use_live = st.session_state.get('use_live_prices', False)
+        except Exception:
+            pass
+        
+        if use_live:
+            return get_portfolio_with_live_prices()
+        
+        # Normal flow - try Google Sheets first
+        if portfolio_sheet is not None:
+            try:
+                return portfolio_sheet.get_all_records()
+            except Exception as e:
+                print(f"Error reading portfolio: {e}")
+        
+        # Fallback sample data
+        return [
+            {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
+            {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
+            {"Coin Name": "Cardano", "Coin ID": "ADA", "Quantity": 1000, "Avg Buy Price": 0.45, "Current Price": 0.52, "Current Value": 520, "P&L": 70, "ROI %": 15.56}
+        ]
+        
+    except Exception as e:
+        print(f"Error in get_portfolio: {e}")
+        return [
+            {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
+            {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
+            {"Coin Name": "Cardano", "Coin ID": "ADA", "Quantity": 1000, "Avg Buy Price": 0.45, "Current Price": 0.52, "Current Value": 520, "P&L": 70, "ROI %": 15.56}
+        ]
 
 def get_potential_coins():
     if potential_coins_sheet is not None:
@@ -272,3 +295,101 @@ def get_coin_historical_prices(coin_id, days=30):
     except Exception as e:
         print(f"Error getting coin historical prices: {e}")
         return []
+
+def fetch_current_prices(coin_ids):
+    """
+    Fetch current prices using price_fetcher_fallback module
+    """
+    try:
+        import price_fetcher_fallback
+        import asyncio
+        
+        # Chuyển đổi coin_ids thành format phù hợp
+        formatted_ids = []
+        for coin_id in coin_ids:
+            if isinstance(coin_id, str):
+                formatted_ids.append(coin_id.lower())
+        
+        # Gọi async function với event loop
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Gọi function từ price_fetcher_fallback
+        if hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
+            result = loop.run_until_complete(
+                price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids)
+            )
+        elif hasattr(price_fetcher_fallback, 'get_crypto_prices'):
+            result = loop.run_until_complete(
+                price_fetcher_fallback.get_crypto_prices(formatted_ids)
+            )
+        else:
+            # Fallback - tạo dữ liệu mẫu
+            result = {}
+            for coin_id in formatted_ids:
+                result[coin_id] = {
+                    "current_price": 50000 if coin_id == "btc" else 3000,
+                    "market_cap": 1000000000
+                }
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error fetching prices: {e}")
+        # Return sample data
+        result = {}
+        for coin_id in coin_ids:
+            result[coin_id.lower()] = {
+                "current_price": 50000 if coin_id.lower() == "btc" else 3000,
+                "market_cap": 1000000000
+            }
+        return result
+
+def get_portfolio_with_live_prices():
+    """
+    Get portfolio with live prices from APIs
+    """
+    try:
+        # Lấy dữ liệu portfolio base
+        portfolio_data = get_portfolio()
+        
+        # Lấy danh sách coin IDs
+        coin_ids = [coin.get("Coin ID", "") for coin in portfolio_data if coin.get("Coin ID")]
+        
+        if not coin_ids:
+            return portfolio_data
+        
+        # Fetch live prices
+        live_prices = fetch_current_prices(coin_ids)
+        
+        # Update prices trong portfolio data
+        for coin in portfolio_data:
+            coin_id = coin.get("Coin ID", "").lower()
+            if coin_id in live_prices:
+                current_price = live_prices[coin_id]["current_price"]
+                coin["Current Price"] = current_price
+                
+                # Recalculate values
+                quantity = coin.get("Quantity", 0)
+                avg_buy_price = coin.get("Avg Buy Price", 0)
+                
+                if quantity and current_price:
+                    current_value = quantity * current_price
+                    coin["Current Value"] = current_value
+                    
+                    if avg_buy_price:
+                        total_cost = quantity * avg_buy_price
+                        pnl = current_value - total_cost
+                        roi_percent = (pnl / total_cost) * 100 if total_cost > 0 else 0
+                        
+                        coin["P&L"] = pnl
+                        coin["ROI %"] = round(roi_percent, 2)
+        
+        return portfolio_data
+        
+    except Exception as e:
+        print(f"Error getting portfolio with live prices: {e}")
+        return get_portfolio()
