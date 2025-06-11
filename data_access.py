@@ -76,42 +76,60 @@ except Exception as e:
 
 # Các hàm thao tác với dữ liệu - thêm error handling cho Streamlit
 def get_portfolio():
-    """Updated to optionally use live prices"""
+    """Get portfolio data - fixed circular import"""
     try:
-        # Try to use live prices by default
-        return get_portfolio_with_live_prices()
-    except:
-        # Fallback to original method
+        # Try to load from Google Sheets first
+        if portfolio_sheet is not None:
+            records = portfolio_sheet.get_all_records()
+            if records:
+                return records
+        
+        # Fallback to sample data with live prices
+        return get_sample_portfolio_with_live_prices()
+        
+    except Exception as e:
+        print(f"Error in get_portfolio: {e}")
         return get_sample_portfolio_with_live_prices()
 
 def get_portfolio_with_live_prices():
     """Get portfolio with FORCED live price updates"""
     try:
-        # Get base portfolio
-        portfolio = get_portfolio()
+        # Get base portfolio WITHOUT calling get_portfolio()
+        base_portfolio = None
         
-        if not portfolio:
-            return get_sample_portfolio_with_live_prices()
+        # Try Google Sheets directly
+        if portfolio_sheet is not None:
+            base_portfolio = portfolio_sheet.get_all_records()
+        
+        # If no Google Sheets data, use sample
+        if not base_portfolio:
+            base_portfolio = get_sample_portfolio()
         
         # Extract coin IDs
-        coin_ids = [coin.get("Coin ID") for coin in portfolio if coin.get("Coin ID")]
+        coin_ids = [coin.get("Coin ID") for coin in base_portfolio if coin.get("Coin ID")]
         
         if not coin_ids:
-            return portfolio
+            return base_portfolio
         
         # Fetch live prices
         live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
         
         # Update portfolio with live prices
-        for coin in portfolio:
+        for coin in base_portfolio:
             coin_id = coin.get("Coin ID")
             if coin_id and coin_id in live_prices:
                 coin["Current Price"] = live_prices[coin_id]["current_price"]
                 coin["Market Cap"] = live_prices[coin_id]["market_cap"]
+                
+                # Recalculate Total Value
+                quantity = coin.get("Quantity", 0)
+                if quantity:
+                    coin["Total Value"] = float(quantity) * live_prices[coin_id]["current_price"]
         
-        return portfolio
+        return base_portfolio
         
     except Exception as e:
+        print(f"Error in get_portfolio_with_live_prices: {e}")
         return get_sample_portfolio_with_live_prices()
 
 def get_sample_portfolio_with_live_prices():

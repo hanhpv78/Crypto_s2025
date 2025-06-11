@@ -270,7 +270,7 @@ def main():
         
         st.sidebar.markdown("#### 🌐 API Connection Tests")
         
-        # HOÀN CHỈNH TEST COINGECKO
+        # TEST COINGECKO API
         if st.sidebar.button("🔍 Test CoinGecko API"):
             try:
                 st.sidebar.write("Testing CoinGecko API...")
@@ -314,13 +314,12 @@ def main():
         
         st.sidebar.markdown("#### ⚡ Force Actions")
         
-        # FORCE LIVE PRICES - HOÀN CHỈNH
+        # FORCE LIVE PRICES
         if st.sidebar.button("🔄 Force Live Prices"):
             try:
                 st.sidebar.write("Fetching live prices...")
                 coin_ids = ["BTC", "ETH", "SOL", "DOT", "ADA"]
                 
-                # SỬ DỤNG PRICE_FETCHER_FALLBACK
                 live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
                 st.sidebar.success("✅ Live prices fetched!")
                 st.sidebar.json(live_prices)
@@ -337,14 +336,6 @@ def main():
             st.cache_data.clear()
             st.sidebar.success("✅ Cache cleared!")
             st.sidebar.info("Refresh page to reload data")
-        
-        # RAW DATA
-        if st.sidebar.checkbox("📄 Show Raw Portfolio Data"):
-            try:
-                portfolio = data_access.get_portfolio()
-                st.sidebar.json(portfolio)
-            except Exception as e:
-                st.sidebar.error(f"Error loading portfolio: {str(e)}")
     
     # Main content - CÓ THỂ FAIL NHƯNG SIDEBAR VẪN HIỂN THỊ
     if google_sheets_error:
