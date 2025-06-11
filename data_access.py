@@ -3,41 +3,10 @@ import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import streamlit as st
-import price_fetcher_fallback
+from Main import TICKER_TO_ID_MAPPING
 
-# Ticker mapping - moved from Main.py
-TICKER_TO_ID_MAPPING = {
-    "BTC": "bitcoin",
-    "ETH": "ethereum", 
-    "XRP": "ripple",
-    "BCH": "bitcoin-cash",
-    "LTC": "litecoin",
-    "ADA": "cardano",
-    "DOT": "polkadot",
-    "LINK": "chainlink",
-    "BNB": "binancecoin",
-    "XLM": "stellar",
-    "DOGE": "dogecoin",
-    "USDT": "tether",
-    "USDC": "usd-coin",
-    "SHIB": "shiba-inu",
-    "MATIC": "polygon",
-    "SOL": "solana",
-    "AVAX": "avalanche-2",
-    "TIA": "celestia",
-    "ARB": "arbitrum",
-    "RNDR": "render-token",
-    "ONDO": "ondo-finance",
-    "OM": "mantra-dao",
-    "PIXEL": "pixels",
-    "JUP": "jupiter",
-    "PENDLE": "pendle",
-    "ACE": "ace-casino"
-}
-
-# Đường dẫn đến file credentials - sửa để tìm trong thư mục hiện tại
-creds_file = "gcp_credentials.json"
+# Đường dẫn đến file credentials
+creds_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "gcp_credentials.json")
 
 try:
     # Khởi tạo client với thông tin từ file
@@ -63,212 +32,29 @@ try:
 except Exception as e:
     print(f"Error connecting to Google Sheets: {str(e)}")
     print("Please check if:")
-    print("1. The file gcp_credentials.json exists in the current folder")
+    print("1. The file gcp_credentials.json exists in the root folder")
     print("2. Google Sheet 'CryptoInvestmentDB' exists and is shared with the service account")
     print("3. The required worksheets (Portfolio, PotentialCoins, NotificationSettings) exist")
-    
-    # Initialize as None để Streamlit có thể handle gracefully
-    client = None
-    spreadsheet = None
-    portfolio_sheet = None
-    potential_coins_sheet = None
-    notification_settings_sheet = None
+    raise e
 
-# Các hàm thao tác với dữ liệu - thêm error handling cho Streamlit
+# Các hàm thao tác với dữ liệu ở đây giữ nguyên
 def get_portfolio():
-    """Get portfolio data with optional live prices"""
-    try:
-        # Check if live prices requested
-        use_live = getattr(st.session_state, 'use_live_prices', False)
-        
-        if use_live:
-            return get_portfolio_with_live_prices()
-        
-        # Try Google Sheets first
-        if portfolio_sheet is not None:
-            records = portfolio_sheet.get_all_records()
-            if records:
-                return records
-        
-        # Fallback to sample data
-        return get_sample_portfolio()
-        
-    except Exception as e:
-        print(f"Error in get_portfolio: {e}")
-        return get_sample_portfolio()
-
-def get_portfolio_with_live_prices():
-    """Get portfolio with FORCED live price updates"""
-    try:
-        # Get base portfolio WITHOUT calling get_portfolio()
-        base_portfolio = None
-        
-        # Try Google Sheets directly
-        if portfolio_sheet is not None:
-            base_portfolio = portfolio_sheet.get_all_records()
-        
-        # If no Google Sheets data, use sample
-        if not base_portfolio:
-            base_portfolio = get_sample_portfolio()
-        
-        # Extract coin IDs
-        coin_ids = [coin.get("Coin ID") for coin in base_portfolio if coin.get("Coin ID")]
-        
-        if not coin_ids:
-            return base_portfolio
-        
-        # Fetch live prices
-        live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
-        
-        # Update portfolio with live prices
-        for coin in base_portfolio:
-            coin_id = coin.get("Coin ID")
-            if coin_id and coin_id in live_prices:
-                coin["Current Price"] = live_prices[coin_id]["current_price"]
-                coin["Market Cap"] = live_prices[coin_id]["market_cap"]
-                
-                # Recalculate Total Value
-                quantity = coin.get("Quantity", 0)
-                if quantity:
-                    coin["Total Value"] = float(quantity) * live_prices[coin_id]["current_price"]
-        
-        return base_portfolio
-        
-    except Exception as e:
-        print(f"Error in get_portfolio_with_live_prices: {e}")
-        return get_sample_portfolio_with_live_prices()
-
-def get_sample_portfolio_with_live_prices():
-    """Sample portfolio with REAL live prices"""
-    try:
-        # Fetch real prices for sample coins
-        coin_ids = ["BTC", "ETH", "SOL"]
-        live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
-        
-        return [
-            {
-                "Coin ID": "BTC",
-                "Coin Name": "Bitcoin",
-                "Quantity": 0.5,
-                "Avg Buy Price": 45000,
-                "Current Price": live_prices.get("BTC", {}).get("current_price", 67000),
-                "Market Cap": live_prices.get("BTC", {}).get("market_cap", 1320000000000)
-            },
-            {
-                "Coin ID": "ETH",
-                "Coin Name": "Ethereum", 
-                "Quantity": 2.0,
-                "Avg Buy Price": 2800,
-                "Current Price": live_prices.get("ETH", {}).get("current_price", 3500),
-                "Market Cap": live_prices.get("ETH", {}).get("market_cap", 420000000000)
-            },
-            {
-                "Coin ID": "SOL",
-                "Coin Name": "Solana",
-                "Quantity": 10.0,
-                "Avg Buy Price": 45,
-                "Current Price": live_prices.get("SOL", {}).get("current_price", 65),
-                "Market Cap": live_prices.get("SOL", {}).get("market_cap", 25000000000)
-            }
-        ]
-    except:
-        # Fallback static data
-        return [
-            {
-                "Coin ID": "BTC",
-                "Coin Name": "Bitcoin",
-                "Quantity": 0.5,
-                "Avg Buy Price": 45000,
-                "Current Price": 67000,
-                "Market Cap": 1320000000000
-            }
-        ]
+    records = portfolio_sheet.get_all_records()
+    return records
 
 def get_potential_coins():
-    try:
-        if potential_coins_sheet is None:
-            return get_sample_potential_coins()
-        records = potential_coins_sheet.get_all_records()
-        return records if records else get_sample_potential_coins()
-    except Exception as e:
-        print(f"Error getting potential coins: {e}")
-        return get_sample_potential_coins()
+    records = potential_coins_sheet.get_all_records()
+    return records
 
 def get_notification_settings():
-    try:
-        if notification_settings_sheet is None:
-            return []
-        records = notification_settings_sheet.get_all_records()
-        return records
-    except Exception as e:
-        print(f"Error getting notification settings: {e}")
-        return []
+    records = notification_settings_sheet.get_all_records()
+    return records
 
-def get_sample_portfolio():
-    """Dữ liệu portfolio mẫu để test"""
-    return [
-        {
-            "Coin ID": "BTC",
-            "Coin Name": "Bitcoin",
-            "Quantity": 0.5,
-            "Avg Buy Price": 45000.0,
-            "Current Price": 47000.0,
-            "Total Value": 23500.0,
-            "Market Cap": 900000000000
-        },
-        {
-            "Coin ID": "ETH", 
-            "Coin Name": "Ethereum",
-            "Quantity": 2.0,
-            "Avg Buy Price": 3000.0,
-            "Current Price": 3200.0,
-            "Total Value": 6400.0,
-            "Market Cap": 380000000000
-        },
-        {
-            "Coin ID": "ADA",
-            "Coin Name": "Cardano", 
-            "Quantity": 1000.0,
-            "Avg Buy Price": 0.45,
-            "Current Price": 0.52,
-            "Total Value": 520.0,
-            "Market Cap": 18000000000
-        }
-    ]
-
-def get_sample_potential_coins():
-    """Dữ liệu potential coins mẫu để test"""
-    return [
-        {
-            "Coin ID": "SOL",
-            "Coin Name": "Solana",
-            "Current Price": 65.0,
-            "Market Cap": 25000000000,
-            "Recommendation": "BUY",
-            "Date Added": "2025-06-10",
-            "Reason": "Strong ecosystem growth"
-        },
-        {
-            "Coin ID": "DOT",
-            "Coin Name": "Polkadot",
-            "Current Price": 8.5,
-            "Market Cap": 9000000000,
-            "Recommendation": "HOLD", 
-            "Date Added": "2025-06-08",
-            "Reason": "Waiting for parachain development"
-        }
-    ]
-
-# Giữ nguyên các function khác từ file gốc
 def append_historical_price(coin_id, date, price, market_cap=0):
     """
     Ghi một dòng dữ liệu vào sheet 'historicals_price' với market cap.
     """
     try:
-        if spreadsheet is None:
-            print(f"Cannot save historical price - no spreadsheet connection")
-            return
-            
         # Sử dụng spreadsheet thay vì sheet
         historical_sheet = spreadsheet.worksheet("historicals_price")
         historical_sheet.append_row([coin_id, date, price, market_cap])
@@ -277,21 +63,16 @@ def append_historical_price(coin_id, date, price, market_cap=0):
         print(f"❌ Error saving historical price for {coin_id}: {e}")
         # Thử tạo sheet nếu chưa có
         try:
-            if spreadsheet:
-                new_sheet = spreadsheet.add_worksheet(title="historicals_price", rows="1000", cols="10")
-                new_sheet.update('A1:D1', [["Coin ID", "Date", "Price", "Market Cap"]])
-                new_sheet.append_row([coin_id, date, price, market_cap])
-                print(f"✅ Created new sheet and saved {coin_id}: ${price}")
+            new_sheet = spreadsheet.add_worksheet(title="historicals_price", rows="1000", cols="10")
+            new_sheet.update('A1:D1', [["Coin ID", "Date", "Price", "Market Cap"]])
+            new_sheet.append_row([coin_id, date, price, market_cap])
+            print(f"✅ Created new sheet and saved {coin_id}: ${price}")
         except Exception as e2:
             print(f"❌ Failed to create sheet: {e2}")
 
 def update_portfolio_prices(prices):
     """Cập nhật giá hiện tại và market cap cho portfolio - batch update"""
     try:
-        if portfolio_sheet is None:
-            print("Cannot update portfolio prices - no sheet connection")
-            return
-            
         portfolio_data = portfolio_sheet.get_all_records()
         
         # Collect all updates để batch process
@@ -332,10 +113,6 @@ def update_portfolio_prices(prices):
 def update_potential_coin_prices(prices):
     """Cập nhật giá hiện tại và market cap cho potential coins - batch update"""
     try:
-        if potential_coins_sheet is None:
-            print("Cannot update potential coin prices - no sheet connection")
-            return
-            
         potential_data = potential_coins_sheet.get_all_records()
         
         # Collect all updates để batch process
@@ -365,72 +142,44 @@ def update_potential_coin_prices(prices):
         print(f"❌ Error updating potential coin prices: {e}")
 
 def save_notification_settings(coin_id, coin_name, desired_buy_price, desired_sell_price, buy_threshold_percent, sell_threshold_percent, email):
-    try:
-        if notification_settings_sheet is None:
-            print("Cannot save notification settings - no sheet connection")
+    records = notification_settings_sheet.get_all_records()
+    for i, record in enumerate(records, start=2):
+        if record["Coin ID"] == coin_id:
+            notification_settings_sheet.update_cell(i, 2, coin_name)
+            notification_settings_sheet.update_cell(i, 3, desired_buy_price)
+            notification_settings_sheet.update_cell(i, 4, desired_sell_price)
+            notification_settings_sheet.update_cell(i, 5, buy_threshold_percent)
+            notification_settings_sheet.update_cell(i, 6, sell_threshold_percent)
+            notification_settings_sheet.update_cell(i, 7, email)
             return
-            
-        records = notification_settings_sheet.get_all_records()
-        for i, record in enumerate(records, start=2):
-            if record["Coin ID"] == coin_id:
-                notification_settings_sheet.update_cell(i, 2, coin_name)
-                notification_settings_sheet.update_cell(i, 3, desired_buy_price)
-                notification_settings_sheet.update_cell(i, 4, desired_sell_price)
-                notification_settings_sheet.update_cell(i, 5, buy_threshold_percent)
-                notification_settings_sheet.update_cell(i, 6, sell_threshold_percent)
-                notification_settings_sheet.update_cell(i, 7, email)
-                return
-        # New entry
-        notification_settings_sheet.append_row([
-            coin_id, coin_name, desired_buy_price, desired_sell_price,
-            buy_threshold_percent, sell_threshold_percent, email, 0, 0
-        ])
-    except Exception as e:
-        print(f"Error saving notification settings: {e}")
+    # New entry
+    notification_settings_sheet.append_row([
+        coin_id, coin_name, desired_buy_price, desired_sell_price,
+        buy_threshold_percent, sell_threshold_percent, email, 0, 0
+    ])
 
 def add_portfolio_entry(coin_id, coin_name, quantity, avg_buy_price):
-    try:
-        if portfolio_sheet is None:
-            print("Cannot add portfolio entry - no sheet connection")
-            return
-        portfolio_sheet.append_row([
-            coin_id, coin_name, quantity, avg_buy_price, 0, 0
-        ])
-    except Exception as e:
-        print(f"Error adding portfolio entry: {e}")
+    portfolio_sheet.append_row([
+        coin_id, coin_name, quantity, avg_buy_price, 0, 0
+    ])
 
 def add_potential_coin(coin_id, coin_name, recommendation, reason):
-    try:
-        if potential_coins_sheet is None:
-            print("Cannot add potential coin - no sheet connection")
-            return
-        potential_coins_sheet.append_row([
-            coin_id, coin_name, 0, 0, recommendation, datetime.now().strftime("%Y-%m-%d"), reason
-        ])
-    except Exception as e:
-        print(f"Error adding potential coin: {e}")
+    potential_coins_sheet.append_row([
+        coin_id, coin_name, 0, recommendation, datetime.now().strftime("%Y-%m-%d"), reason
+    ])
 
 def update_notification_status(coin_id, last_buy_price, last_sell_price):
-    try:
-        if notification_settings_sheet is None:
-            return
-        records = notification_settings_sheet.get_all_records()
-        for i, record in enumerate(records, start=2):
-            if record["Coin ID"] == coin_id:
-                notification_settings_sheet.update_cell(i, 8, last_buy_price)
-                notification_settings_sheet.update_cell(i, 9, last_sell_price)
-                break
-    except Exception as e:
-        print(f"Error updating notification status: {e}")
+    records = notification_settings_sheet.get_all_records()
+    for i, record in enumerate(records, start=2):
+        if record["Coin ID"] == coin_id:
+            notification_settings_sheet.update_cell(i, 8, last_buy_price)
+            notification_settings_sheet.update_cell(i, 9, last_sell_price)
+            break
 
 def normalize_coin_ids_in_sheet():
     """
     Chuẩn hóa Coin ID và Coin Name trong sheet về đúng chuẩn CoinGecko.
     """
-    if portfolio_sheet is None or potential_coins_sheet is None:
-        print("Cannot normalize coin IDs - no sheet connection")
-        return
-        
     # Mapping các ID cũ sang ID mới
     OLD_TO_NEW_ID = {
         "fusionist": "ace-casino",
@@ -438,41 +187,35 @@ def normalize_coin_ids_in_sheet():
         "matic-network": "polygon"
     }
     
-    try:
-        # Chuẩn hóa Portfolio sheet
-        all_data = portfolio_sheet.get_all_values()
-        if len(all_data) > 1:  # Có dữ liệu ngoài header
-            header = all_data[0]
-            coin_id_idx = header.index("Coin ID") + 1
-            
-            for i, row in enumerate(all_data[1:], start=2):
-                coin_id = row[coin_id_idx - 1]
-                if coin_id in OLD_TO_NEW_ID:
-                    new_id = OLD_TO_NEW_ID[coin_id]
-                    portfolio_sheet.update_cell(i, coin_id_idx, new_id)
-                    print(f"Updated Portfolio: {coin_id} → {new_id}")
+    # Chuẩn hóa Portfolio sheet
+    all_data = portfolio_sheet.get_all_values()
+    if len(all_data) > 1:  # Có dữ liệu ngoài header
+        header = all_data[0]
+        coin_id_idx = header.index("Coin ID") + 1
         
-        # Chuẩn hóa Potential Coins sheet
-        all_data = potential_coins_sheet.get_all_values()
-        if len(all_data) > 1:  # Có dữ liệu ngoài header
-            header = all_data[0]
-            coin_id_idx = header.index("Coin ID") + 1
-            
-            for i, row in enumerate(all_data[1:], start=2):
-                coin_id = row[coin_id_idx - 1]
-                if coin_id in OLD_TO_NEW_ID:
-                    new_id = OLD_TO_NEW_ID[coin_id]
-                    potential_coins_sheet.update_cell(i, coin_id_idx, new_id)
-                    print(f"Updated Potential Coins: {coin_id} → {new_id}")
-    except Exception as e:
-        print(f"Error normalizing coin IDs: {e}")
+        for i, row in enumerate(all_data[1:], start=2):
+            coin_id = row[coin_id_idx - 1]
+            if coin_id in OLD_TO_NEW_ID:
+                new_id = OLD_TO_NEW_ID[coin_id]
+                portfolio_sheet.update_cell(i, coin_id_idx, new_id)
+                print(f"Updated Portfolio: {coin_id} → {new_id}")
+    
+    # Chuẩn hóa Potential Coins sheet
+    all_data = potential_coins_sheet.get_all_values()
+    if len(all_data) > 1:  # Có dữ liệu ngoài header
+        header = all_data[0]
+        coin_id_idx = header.index("Coin ID") + 1
+        
+        for i, row in enumerate(all_data[1:], start=2):
+            coin_id = row[coin_id_idx - 1]
+            if coin_id in OLD_TO_NEW_ID:
+                new_id = OLD_TO_NEW_ID[coin_id]
+                potential_coins_sheet.update_cell(i, coin_id_idx, new_id)
+                print(f"Updated Potential Coins: {coin_id} → {new_id}")
 
 def get_historical_data(days=30):
     """Lấy dữ liệu historical prices từ sheet"""
     try:
-        if spreadsheet is None:
-            return {}
-            
         historical_sheet = spreadsheet.worksheet("historicals_price")
         all_data = historical_sheet.get_all_records()
         
@@ -506,9 +249,6 @@ def get_historical_data(days=30):
 def get_coin_historical_prices(coin_id, days=30):
     """Lấy historical prices cho một coin cụ thể"""
     try:
-        if spreadsheet is None:
-            return []
-            
         historical_sheet = spreadsheet.worksheet("historicals_price")
         all_data = historical_sheet.get_all_records()
         
@@ -540,100 +280,3 @@ def get_coin_historical_prices(coin_id, days=30):
     except Exception as e:
         print(f"Error getting coin historical prices: {e}")
         return []
-
-def get_google_sheets_client():
-    """Tạo Google Sheets client với debug info"""
-    try:
-        # Debug: Check if secrets exist
-        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
-            st.write("✅ Found GCP credentials in secrets")
-            credentials_info = dict(st.secrets["gcp_service_account"])
-            
-            # Debug: Check key fields
-            required_fields = ['type', 'project_id', 'private_key', 'client_email']
-            missing_fields = [field for field in required_fields if field not in credentials_info]
-            
-            if missing_fields:
-                st.error(f"❌ Missing fields in credentials: {missing_fields}")
-                return None
-                
-            scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_info, scope)
-            client = gspread.authorize(credentials)
-            
-            st.success("✅ Google Sheets client created successfully!")
-            return client
-        else:
-            st.warning("⚠️ No GCP credentials found in secrets, using sample data")
-            return None
-            
-    except Exception as e:
-        st.error(f"❌ Error creating Google Sheets client: {str(e)}")
-        return None
-
-def load_portfolio_data():
-    """Load portfolio với debug info"""
-    try:
-        client = get_google_sheets_client()
-        
-        if client is None:
-            st.info("📊 Using sample portfolio data")
-            return get_sample_portfolio_data()
-        
-        # Try to open the spreadsheet
-        spreadsheet = client.open("Crypto Portfolio Tracker")
-        worksheet = spreadsheet.sheet1
-        
-        # Get data
-        data = worksheet.get_all_records()
-        st.success(f"✅ Loaded {len(data)} coins from Google Sheets")
-        
-        return data
-        
-    except Exception as e:
-        st.error(f"❌ Error loading portfolio: {str(e)}")
-        st.info("📊 Falling back to sample data")
-        return get_sample_portfolio_data()
-
-def update_portfolio_with_live_prices(portfolio):
-    """Update portfolio với giá real-time"""
-    try:
-        st.write("🔄 Updating portfolio with live prices...")
-        
-        # Get all coin IDs
-        coin_ids = [coin.get("Coin ID") for coin in portfolio if coin.get("Coin ID")]
-        st.write(f"Coins to update: {coin_ids}")
-        
-        if not coin_ids:
-            st.warning("⚠️ No coin IDs found in portfolio")
-            return portfolio
-        
-        # Fetch live prices
-        live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
-        st.write(f"Live prices fetched: {live_prices}")
-        
-        # Update portfolio
-        updated_portfolio = []
-        for coin in portfolio:
-            coin_id = coin.get("Coin ID")
-            if coin_id and coin_id in live_prices:
-                coin["Current Price"] = live_prices[coin_id]["current_price"]
-                coin["Market Cap"] = live_prices[coin_id]["market_cap"]
-                
-                # Recalculate Total Value
-                quantity = coin.get("Quantity", 0)
-                if quantity:
-                    coin["Total Value"] = float(quantity) * live_prices[coin_id]["current_price"]
-                    
-                st.write(f"✅ Updated {coin_id}: ${live_prices[coin_id]['current_price']}")
-            else:
-                st.warning(f"⚠️ Could not update price for {coin_id}")
-            
-            updated_portfolio.append(coin)
-        
-        st.success(f"✅ Updated {len(updated_portfolio)} coins with live prices")
-        return updated_portfolio
-        
-    except Exception as e:
-        st.error(f"❌ Error updating prices: {str(e)}")
-        return portfolio

@@ -1,8 +1,6 @@
 import aiohttp
 import asyncio
 from typing import Dict, List, Optional
-import streamlit as st
-import requests
 
 # Mapping từ CoinGecko ID sang symbol cho các API khác
 COINGECKO_TO_SYMBOL = {
@@ -140,47 +138,3 @@ class price_fetcher_fallback:
     async def fetch_coin_prices_with_fallback(coin_ids):
         print(f"Mock fetch_coin_prices_with_fallback called with {coin_ids}")
         return {coin_id: {"current_price": 0} for coin_id in coin_ids}  # Trả về giá = 0
-
-def test_coingecko_api():
-    """Test CoinGecko API connection"""
-    try:
-        st.write("🔍 Testing CoinGecko API...")
-        
-        # Test simple API call
-        response = requests.get("https://api.coingecko.com/api/v3/ping", timeout=10)
-        
-        if response.status_code == 200:
-            st.success("✅ CoinGecko API is reachable")
-            
-            # Test price fetch
-            price_response = requests.get(
-                "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,cardano&vs_currencies=usd",
-                timeout=10
-            )
-            
-            if price_response.status_code == 200:
-                prices = price_response.json()
-                st.success(f"✅ Successfully fetched prices: {prices}")
-                return True
-            else:
-                st.error(f"❌ Price fetch failed: {price_response.status_code}")
-                return False
-        else:
-            st.error(f"❌ CoinGecko API unreachable: {response.status_code}")
-            return False
-            
-    except Exception as e:
-        st.error(f"❌ API test failed: {str(e)}")
-        return False
-
-# Thêm vào fetch_prices function
-def fetch_prices(coin_ids):
-    """Fetch prices với debug"""
-    st.write(f"🔍 Fetching prices for: {coin_ids}")
-    
-    # Test API first
-    if not test_coingecko_api():
-        st.warning("⚠️ Using fallback prices")
-        return get_fallback_prices(coin_ids)
-    
-    # Continue with normal price fetching...
