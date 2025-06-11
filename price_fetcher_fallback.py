@@ -33,15 +33,25 @@ COINGECKO_TO_SYMBOL = {
 }
 
 async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
-    """Lấy giá từ CoinGecko"""
+    """Lấy giá từ CoinGecko với rate limit handling"""
     try:
         ids_str = ",".join(coin_ids)
-        # Thêm include_market_cap=true
         url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
         
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        # Thêm headers để tránh rate limit
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+        }
+        
+        timeout = aiohttp.ClientTimeout(total=15)  # Tăng timeout
+        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+            # Thêm delay nhỏ để tránh rate limit
+            await asyncio.sleep(0.5)
+            
             async with session.get(url) as response:
+                print(f"CoinGecko response status: {response.status}")
+                
                 if response.status == 200:
                     data = await response.json()
                     result = {}
@@ -54,6 +64,12 @@ async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
                             }
                     print(f"CoinGecko fetched prices for {len(result)} coins")
                     return result
+                elif response.status == 429:
+                    print("CoinGecko rate limit hit, using Binance fallback")
+                    return {}
+                else:
+                    print(f"CoinGecko API error: {response.status}")
+                    return {}
     except Exception as e:
         print(f"CoinGecko error: {e}")
     return {}
