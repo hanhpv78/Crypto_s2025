@@ -308,7 +308,20 @@ def fetch_current_prices(coin_ids):
         formatted_ids = []
         for coin_id in coin_ids:
             if isinstance(coin_id, str):
-                formatted_ids.append(coin_id.lower())
+                # Convert symbols to CoinGecko IDs
+                coin_lower = coin_id.lower()
+                if coin_lower == "btc":
+                    formatted_ids.append("bitcoin")
+                elif coin_lower == "eth":
+                    formatted_ids.append("ethereum")
+                elif coin_lower == "ada":
+                    formatted_ids.append("cardano")
+                elif coin_lower == "sol":
+                    formatted_ids.append("solana")
+                elif coin_lower == "dot":
+                    formatted_ids.append("polkadot")
+                else:
+                    formatted_ids.append(coin_lower)
         
         # Gọi async function với event loop
         try:
@@ -317,34 +330,41 @@ def fetch_current_prices(coin_ids):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         
-        # Gọi function từ price_fetcher_fallback
-        if hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
-            result = loop.run_until_complete(
-                price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids)
-            )
-        elif hasattr(price_fetcher_fallback, 'get_crypto_prices'):
-            result = loop.run_until_complete(
-                price_fetcher_fallback.get_crypto_prices(formatted_ids)
-            )
-        else:
-            # Fallback - tạo dữ liệu mẫu
-            result = {}
-            for coin_id in formatted_ids:
-                result[coin_id] = {
-                    "current_price": 50000 if coin_id == "btc" else 3000,
-                    "market_cap": 1000000000
+        print(f"Calling price_fetcher_fallback.fetch_coin_prices_with_fallback with {formatted_ids}")
+        
+        # Gọi function chính (không phải class method)
+        result = loop.run_until_complete(
+            price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids)
+        )
+        
+        print(f"Raw result from price_fetcher_fallback: {result}")
+        
+        # Chuyển đổi kết quả về format mong muốn và map lại coin IDs
+        final_result = {}
+        for original_id, formatted_id in zip(coin_ids, formatted_ids):
+            if formatted_id in result:
+                price_data = result[formatted_id]
+                final_result[original_id.lower()] = {
+                    "current_price": price_data.get("current_price", 0),
+                    "market_cap": price_data.get("market_cap", 0),
+                    "price_change_24h": price_data.get("price_change_24h", 0)
                 }
         
-        return result
+        print(f"Final formatted result: {final_result}")
+        return final_result
         
     except Exception as e:
         print(f"Error fetching prices: {e}")
+        import traceback
+        traceback.print_exc()
+        
         # Return sample data
         result = {}
         for coin_id in coin_ids:
             result[coin_id.lower()] = {
                 "current_price": 50000 if coin_id.lower() == "btc" else 3000,
-                "market_cap": 1000000000
+                "market_cap": 1000000000,
+                "price_change_24h": 2.5
             }
         return result
 

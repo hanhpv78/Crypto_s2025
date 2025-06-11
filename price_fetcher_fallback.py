@@ -36,7 +36,8 @@ async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
     """Lấy giá từ CoinGecko"""
     try:
         ids_str = ",".join(coin_ids)
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd&include_24hr_change=true"
+        # Thêm include_market_cap=true
+        url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
         
         timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -48,6 +49,7 @@ async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
                         if coin_id in data:
                             result[coin_id] = {
                                 "current_price": data[coin_id]["usd"],
+                                "market_cap": data[coin_id].get("usd_market_cap", 0),
                                 "price_change_24h": data[coin_id].get("usd_24h_change", 0)
                             }
                     print(f"CoinGecko fetched prices for {len(result)} coins")
