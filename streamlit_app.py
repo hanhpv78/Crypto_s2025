@@ -251,7 +251,7 @@ def main():
     st.sidebar.markdown("### ⏰ Last Updated")
     st.sidebar.markdown(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Debug panel
+    # 🔧 THÊM DEBUG PANEL VÀO ĐÂY (trong main function)
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔧 Debug Panel")
     
@@ -488,6 +488,9 @@ def main():
                 use_container_width=True,
                 hide_index=True
             )
+
+# XÓA debug panel code ở ngoài main function
+# (Xóa đoạn code "with st.sidebar:" ở cuối file)
 
 if __name__ == "__main__":
     main()
