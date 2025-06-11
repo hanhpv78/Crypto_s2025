@@ -8,6 +8,8 @@ import aiohttp
 import os
 import sys
 from pathlib import Path
+import requests
+import price_fetcher_fallback
 
 # Add current directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +19,6 @@ if current_dir not in sys.path:
 # Import modules với error handling
 try:
     import data_access
-    import price_fetcher_fallback
     import notification
     import_success = True
 except ImportError as e:
@@ -405,34 +406,101 @@ def main():
 # Thêm vào sidebar
 with st.sidebar:
     st.markdown("---")
-    st.markdown("### 🔧 Debug Info")
+    st.markdown("### 🔧 Debug Panel")
     
-    if st.checkbox("Show Debug Info"):
-        st.markdown("#### Credentials Status")
+    if st.checkbox("🔍 Show Debug Info"):
+        st.markdown("#### 🔐 Credentials Status")
         if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
             st.success("✅ GCP Credentials Found")
             project_id = st.secrets["gcp_service_account"].get("project_id", "Not found")
-            st.write(f"Project ID: {project_id}")
+            st.write(f"**Project ID:** `{project_id}`")
+            client_email = st.secrets["gcp_service_account"].get("client_email", "Not found")
+            st.write(f"**Service Account:** `{client_email}`")
         else:
             st.error("❌ No GCP Credentials")
+            st.info("Add credentials in App Settings → Secrets")
         
-        st.markdown("#### API Status")
-        # Test CoinGecko API
-        try:
-            import requests
-            response = requests.get("https://api.coingecko.com/api/v3/ping", timeout=5)
-            if response.status_code == 200:
-                st.success("✅ CoinGecko API OK")
+        st.markdown("#### 🌐 API Connection Tests")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔍 Test CoinGecko API"):
+                try:
+                    st.write("Testing CoinGecko API...")
+                    response = requests.get("https://api.coingecko.com/api/v3/ping", timeout=10)
+                    if response.status_code == 200:
+                        st.success("✅ CoinGecko API OK")
+                        
+                        # Test actual price fetch
+                        price_response = requests.get(
+                            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd",
+                            timeout=10
+                        )
+                        if price_response.status_code == 200:
+                            prices = price_response.json()
+                            st.success("✅ Price fetch working!")
+                            st.json(prices)
+                        else:
+                            st.error(f"❌ Price fetch failed: {price_response.status_code}")
+                    else:
+                        st.error(f"❌ API Error: {response.status_code}")
+                except Exception as e:
+                    st.error(f"❌ Connection failed: {str(e)}")
+        
+        with col2:
+            if st.button("📊 Test Google Sheets"):
+                try:
+                    client = data_access.get_google_sheets_client()
+                    if client:
+                        st.success("✅ Google Sheets OK")
+                    else:
+                        st.error("❌ Google Sheets Failed")
+                except Exception as e:
+                    st.error(f"❌ Sheets Error: {str(e)}")
+        
+        st.markdown("#### 🔄 Data Source Status")
+        
+        # Check current data source
+        portfolio = data_access.get_portfolio()
+        if portfolio:
+            sample_coin = portfolio[0]
+            if sample_coin.get("Coin ID") == "BTC" and sample_coin.get("Current Price") == 47000.0:
+                st.warning("⚠️ Using **SAMPLE DATA**")
+                st.info("Real Google Sheets not connected")
             else:
-                st.error("❌ CoinGecko API Error")
-        except:
-            st.error("❌ CoinGecko API Unreachable")
+                st.success("✅ Using **REAL DATA**")
+                
+            st.write(f"**Portfolio size:** {len(portfolio)} coins")
+            st.write(f"**Sample coin:** {sample_coin.get('Coin Name')} - ${sample_coin.get('Current Price')}")
         
-        st.markdown("#### Data Source")
-        if 'data_source' in st.session_state:
-            st.write(f"Current: {st.session_state.data_source}")
-        else:
-            st.write("Source: Unknown")
+        st.markdown("#### ⚡ Force Actions")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Force Live Prices"):
+                try:
+                    st.write("Fetching live prices...")
+                    coin_ids = ["BTC", "ETH", "SOL", "DOT", "ADA"]
+                    live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
+                    st.success("✅ Live prices fetched!")
+                    st.json(live_prices)
+                    
+                    # Clear cache to force refresh
+                    st.cache_data.clear()
+                    
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+        
+        with col2:
+            if st.button("🗑️ Clear Cache"):
+                st.cache_data.clear()
+                st.success("✅ Cache cleared!")
+                st.info("Refresh page to reload data")
+        
+        # Show raw portfolio data
+        if st.checkbox("📄 Show Raw Portfolio Data"):
+            st.json(portfolio)
 
 if __name__ == "__main__":
     main()

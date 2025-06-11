@@ -4,6 +4,7 @@ import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import streamlit as st
+import price_fetcher_fallback
 
 # Ticker mapping - moved from Main.py
 TICKER_TO_ID_MAPPING = {
@@ -75,13 +76,27 @@ except Exception as e:
 
 # Các hàm thao tác với dữ liệu - thêm error handling cho Streamlit
 def get_portfolio():
+    """Get portfolio với option cho live prices"""
     try:
-        if portfolio_sheet is None:
-            return get_sample_portfolio()
-        records = portfolio_sheet.get_all_records()
-        return records if records else get_sample_portfolio()
+        # Check if we should use live prices
+        use_live_prices = st.sidebar.checkbox("🔴 Use Live Prices", value=False)
+        
+        # Load base portfolio data
+        if client and portfolio_sheet:
+            portfolio = portfolio_sheet.get_all_records()
+            if not portfolio:
+                portfolio = get_sample_portfolio()
+        else:
+            portfolio = get_sample_portfolio()
+        
+        # Update với live prices nếu được enable
+        if use_live_prices:
+            portfolio = update_portfolio_with_live_prices(portfolio)
+        
+        return portfolio
+        
     except Exception as e:
-        print(f"Error getting portfolio: {e}")
+        st.error(f"❌ Error in get_portfolio: {str(e)}")
         return get_sample_portfolio()
 
 def get_potential_coins():
@@ -494,3 +509,46 @@ def load_portfolio_data():
         st.error(f"❌ Error loading portfolio: {str(e)}")
         st.info("📊 Falling back to sample data")
         return get_sample_portfolio_data()
+
+def update_portfolio_with_live_prices(portfolio):
+    """Update portfolio với giá real-time"""
+    try:
+        st.write("🔄 Updating portfolio with live prices...")
+        
+        # Get all coin IDs
+        coin_ids = [coin.get("Coin ID") for coin in portfolio if coin.get("Coin ID")]
+        st.write(f"Coins to update: {coin_ids}")
+        
+        if not coin_ids:
+            st.warning("⚠️ No coin IDs found in portfolio")
+            return portfolio
+        
+        # Fetch live prices
+        live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
+        st.write(f"Live prices fetched: {live_prices}")
+        
+        # Update portfolio
+        updated_portfolio = []
+        for coin in portfolio:
+            coin_id = coin.get("Coin ID")
+            if coin_id and coin_id in live_prices:
+                coin["Current Price"] = live_prices[coin_id]["current_price"]
+                coin["Market Cap"] = live_prices[coin_id]["market_cap"]
+                
+                # Recalculate Total Value
+                quantity = coin.get("Quantity", 0)
+                if quantity:
+                    coin["Total Value"] = float(quantity) * live_prices[coin_id]["current_price"]
+                    
+                st.write(f"✅ Updated {coin_id}: ${live_prices[coin_id]['current_price']}")
+            else:
+                st.warning(f"⚠️ Could not update price for {coin_id}")
+            
+            updated_portfolio.append(coin)
+        
+        st.success(f"✅ Updated {len(updated_portfolio)} coins with live prices")
+        return updated_portfolio
+        
+    except Exception as e:
+        st.error(f"❌ Error updating prices: {str(e)}")
+        return portfolio
