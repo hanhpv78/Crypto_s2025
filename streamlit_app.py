@@ -402,5 +402,37 @@ def main():
                 hide_index=True
             )
 
+# Thêm vào sidebar
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("### 🔧 Debug Info")
+    
+    if st.checkbox("Show Debug Info"):
+        st.markdown("#### Credentials Status")
+        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+            st.success("✅ GCP Credentials Found")
+            project_id = st.secrets["gcp_service_account"].get("project_id", "Not found")
+            st.write(f"Project ID: {project_id}")
+        else:
+            st.error("❌ No GCP Credentials")
+        
+        st.markdown("#### API Status")
+        # Test CoinGecko API
+        try:
+            import requests
+            response = requests.get("https://api.coingecko.com/api/v3/ping", timeout=5)
+            if response.status_code == 200:
+                st.success("✅ CoinGecko API OK")
+            else:
+                st.error("❌ CoinGecko API Error")
+        except:
+            st.error("❌ CoinGecko API Unreachable")
+        
+        st.markdown("#### Data Source")
+        if 'data_source' in st.session_state:
+            st.write(f"Current: {st.session_state.data_source}")
+        else:
+            st.write("Source: Unknown")
+
 if __name__ == "__main__":
     main()
