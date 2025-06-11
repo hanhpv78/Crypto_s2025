@@ -3,7 +3,7 @@ import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-from Main import TICKER_TO_ID_MAPPING
+from streamlit_app   import TICKER_TO_ID_MAPPING
 
 # Đường dẫn đến file credentials
 creds_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "gcp_credentials.json")
