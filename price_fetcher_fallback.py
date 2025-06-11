@@ -35,20 +35,20 @@ COINGECKO_TO_SYMBOL = {
 async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
     """Lấy giá từ CoinGecko với rate limit handling"""
     try:
+        # Thêm delay để tránh rate limit
+        await asyncio.sleep(1.0)
+        
         ids_str = ",".join(coin_ids)
         url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
         
-        # Thêm headers để tránh rate limit
+        # Headers để tránh rate limit
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json'
         }
         
-        timeout = aiohttp.ClientTimeout(total=15)  # Tăng timeout
+        timeout = aiohttp.ClientTimeout(total=20)  # Tăng timeout
         async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-            # Thêm delay nhỏ để tránh rate limit
-            await asyncio.sleep(0.5)
-            
             async with session.get(url) as response:
                 print(f"CoinGecko response status: {response.status}")
                 
@@ -62,47 +62,52 @@ async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
                                 "market_cap": data[coin_id].get("usd_market_cap", 0),
                                 "price_change_24h": data[coin_id].get("usd_24h_change", 0)
                             }
-                    print(f"CoinGecko fetched prices for {len(result)} coins")
+                    print(f"✅ CoinGecko fetched {len(result)} coins")
                     return result
                 elif response.status == 429:
-                    print("CoinGecko rate limit hit, using Binance fallback")
+                    print("⚠️ CoinGecko rate limit, fallback to Binance")
                     return {}
                 else:
-                    print(f"CoinGecko API error: {response.status}")
+                    print(f"❌ CoinGecko error: {response.status}")
                     return {}
     except Exception as e:
-        print(f"CoinGecko error: {e}")
+        print(f"❌ CoinGecko exception: {e}")
     return {}
 
-async def fetch_from_binance(symbols: List[str]) -> Dict[str, Dict]:
-    """Lấy giá từ Binance (không cần API key)"""
+async def fetch_from_binance(coin_ids: List[str]) -> Dict[str, Dict]:
+    """Lấy giá từ Binance cho fallback"""
     try:
-        url = "https://api.binance.com/api/v3/ticker/24hr"
+        await asyncio.sleep(0.5)  # Rate limit protection
         
-        timeout = aiohttp.ClientTimeout(total=10)
+        url = "https://api.binance.com/api/v3/ticker/24hr"
+        timeout = aiohttp.ClientTimeout(total=15)
+        
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
                     result = {}
                     
-                    # Tạo mapping từ symbol sang data
-                    binance_data = {item["symbol"]: item for item in data}
+                    # Tạo mapping từ CoinGecko ID sang Binance symbols
+                    for coin_id in coin_ids:
+                        symbol = COINGECKO_TO_SYMBOL.get(coin_id, "").upper()
+                        if symbol:
+                            # Tìm symbol trong Binance data
+                            for item in data:
+                                if item.get("symbol") == f"{symbol}USDT":
+                                    result[coin_id] = {
+                                        "current_price": float(item["lastPrice"]),
+                                        "market_cap": 0,  # Binance không có market cap
+                                        "price_change_24h": float(item["priceChangePercent"])
+                                    }
+                                    break
                     
-                    for symbol in symbols:
-                        # Thử với USDT pair trước
-                        usdt_pair = f"{symbol}USDT"
-                        if usdt_pair in binance_data:
-                            item = binance_data[usdt_pair]
-                            result[symbol] = {
-                                "current_price": float(item["lastPrice"]),
-                                "price_change_24h": float(item["priceChangePercent"])
-                            }
-                    
-                    print(f"Binance fetched prices for {len(result)} symbols")
+                    print(f"✅ Binance fetched {len(result)} coins")
                     return result
+                else:
+                    print(f"❌ Binance error: {response.status}")
     except Exception as e:
-        print(f"Binance error: {e}")
+        print(f"❌ Binance exception: {e}")
     return {}
 
 async def fetch_coin_prices_with_fallback(coin_ids: List[str]) -> Dict[str, Dict]:
@@ -150,12 +155,6 @@ async def fetch_coin_prices_with_fallback(coin_ids: List[str]) -> Dict[str, Dict
     print(f"Sources used: CoinGecko({len(coingecko_prices)}), Binance({len(binance_prices)})")
     
     return final_result
-
-class price_fetcher_fallback:
-    @staticmethod
-    async def fetch_coin_prices_with_fallback(coin_ids):
-        print(f"Mock fetch_coin_prices_with_fallback called with {coin_ids}")
-        return {coin_id: {"current_price": 0} for coin_id in coin_ids}  # Trả về giá = 0
 
 def get_potential_coins_with_live_prices():
     """Get potential coins with live prices"""

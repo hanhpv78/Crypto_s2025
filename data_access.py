@@ -449,3 +449,40 @@ def get_portfolio_with_live_prices():
     except Exception as e:
         print(f"Error getting portfolio with live prices: {e}")
         return get_portfolio()
+
+# Thêm function test trực tiếp
+
+def test_live_prices_direct():
+    """Test live prices với debug output"""
+    try:
+        test_coins = ["bitcoin", "ethereum", "solana"]
+        print(f"Testing live prices for: {test_coins}")
+        
+        import price_fetcher_fallback
+        import asyncio
+        
+        # Kiểm tra function có tồn tại không
+        if not hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
+            print("❌ Function fetch_coin_prices_with_fallback not found!")
+            return {}
+        
+        # Event loop
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Gọi function
+        result = loop.run_until_complete(
+            price_fetcher_fallback.fetch_coin_prices_with_fallback(test_coins)
+        )
+        
+        print(f"✅ Live prices result: {result}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ Test live prices error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
