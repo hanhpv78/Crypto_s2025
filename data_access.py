@@ -76,20 +76,26 @@ except Exception as e:
 
 # Các hàm thao tác với dữ liệu - thêm error handling cho Streamlit
 def get_portfolio():
-    """Get portfolio data - fixed circular import"""
+    """Get portfolio data with optional live prices"""
     try:
-        # Try to load from Google Sheets first
+        # Check if live prices requested
+        use_live = getattr(st.session_state, 'use_live_prices', False)
+        
+        if use_live:
+            return get_portfolio_with_live_prices()
+        
+        # Try Google Sheets first
         if portfolio_sheet is not None:
             records = portfolio_sheet.get_all_records()
             if records:
                 return records
         
-        # Fallback to sample data with live prices
-        return get_sample_portfolio_with_live_prices()
+        # Fallback to sample data
+        return get_sample_portfolio()
         
     except Exception as e:
         print(f"Error in get_portfolio: {e}")
-        return get_sample_portfolio_with_live_prices()
+        return get_sample_portfolio()
 
 def get_portfolio_with_live_prices():
     """Get portfolio with FORCED live price updates"""

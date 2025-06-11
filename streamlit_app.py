@@ -8,8 +8,8 @@ import aiohttp
 import os
 import sys
 from pathlib import Path
-import requests
-import price_fetcher_fallback
+import requests  # For API testing
+import price_fetcher_fallback  # For live prices
 
 # Add current directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -252,90 +252,70 @@ def main():
     st.sidebar.markdown("### ⏰ Last Updated")
     st.sidebar.markdown(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # 🔧 DEBUG PANEL - HOÀN CHỈNH
+    # ========== 🔧 DEBUG PANEL - THÊM ĐOẠN NÀY ==========
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔧 Debug Panel")
     
-    if st.sidebar.checkbox("🔍 Show Debug Info"):
-        st.sidebar.markdown("#### 🔐 Credentials Status")
+    debug_enabled = st.sidebar.checkbox("🔍 Show Debug Info")
+    
+    if debug_enabled:
+        # Credentials Check
+        st.sidebar.markdown("#### 🔐 Credentials")
         if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
-            st.sidebar.success("✅ GCP Credentials Found")
-            project_id = st.secrets["gcp_service_account"].get("project_id", "Not found")
-            st.sidebar.write(f"**Project ID:** `{project_id}`")
-            client_email = st.secrets["gcp_service_account"].get("client_email", "Not found")
-            st.sidebar.write(f"**Service Account:** `{client_email}`")
+            st.sidebar.success("✅ GCP Secrets Found")
+            st.sidebar.code(f"Project: {st.secrets['gcp_service_account'].get('project_id', 'N/A')}")
         else:
-            st.sidebar.error("❌ No GCP Credentials")
-            st.sidebar.info("Add credentials in App Settings → Secrets")
+            st.sidebar.error("❌ No GCP Secrets")
         
-        st.sidebar.markdown("#### 🌐 API Connection Tests")
+        # API Tests
+        st.sidebar.markdown("#### 🌐 API Tests")
         
-        # TEST COINGECKO API
-        if st.sidebar.button("🔍 Test CoinGecko API"):
-            try:
-                st.sidebar.write("Testing CoinGecko API...")
-                response = requests.get("https://api.coingecko.com/api/v3/ping", timeout=10)
-                if response.status_code == 200:
-                    st.sidebar.success("✅ CoinGecko API OK")
-                    
-                    # Test actual price fetch
-                    price_response = requests.get(
-                        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd",
-                        timeout=10
-                    )
-                    if price_response.status_code == 200:
-                        prices = price_response.json()
-                        st.sidebar.success("✅ Price fetch working!")
-                        st.sidebar.json(prices)
-                    else:
-                        st.sidebar.error(f"❌ Price fetch failed: {price_response.status_code}")
-                else:
-                    st.sidebar.error(f"❌ API Error: {response.status_code}")
-            except Exception as e:
-                st.sidebar.error(f"❌ Connection failed: {str(e)}")
+        if st.sidebar.button("Test CoinGecko"):
+            with st.sidebar:
+                with st.spinner("Testing..."):
+                    try:
+                        import requests
+                        resp = requests.get("https://api.coingecko.com/api/v3/ping", timeout=5)
+                        if resp.status_code == 200:
+                            st.success("✅ CoinGecko OK")
+                            
+                            # Test price fetch
+                            price_resp = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd", timeout=5)
+                            if price_resp.status_code == 200:
+                                prices = price_resp.json()
+                                st.json(prices)
+                            else:
+                                st.error(f"Price fetch failed: {price_resp.status_code}")
+                        else:
+                            st.error(f"API failed: {resp.status_code}")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
         
-        # TEST GOOGLE SHEETS
-        if st.sidebar.button("📊 Test Google Sheets"):
-            try:
-                portfolio = data_access.get_portfolio()
-                if portfolio and len(portfolio) > 0:
-                    st.sidebar.success("✅ Google Sheets OK")
-                    st.sidebar.write(f"Found {len(portfolio)} coins")
-                    
-                    first_coin = portfolio[0]
-                    if first_coin.get("Coin ID") == "BTC" and first_coin.get("Current Price") == 47000.0:
-                        st.sidebar.warning("⚠️ Using SAMPLE data")
-                    else:
-                        st.sidebar.success("✅ Using REAL data")
-                else:
-                    st.sidebar.error("❌ No portfolio data")
-            except Exception as e:
-                st.sidebar.error(f"❌ Sheets Error: {str(e)}")
+        if st.sidebar.button("Test Live Prices"):
+            with st.sidebar:
+                with st.spinner("Fetching..."):
+                    try:
+                        live_prices = price_fetcher_fallback.fetch_current_prices(["BTC", "ETH", "SOL"])
+                        st.success("✅ Live prices working!")
+                        st.json(live_prices)
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
         
-        st.sidebar.markdown("#### ⚡ Force Actions")
+        # Force Actions
+        st.sidebar.markdown("#### ⚡ Actions")
         
-        # FORCE LIVE PRICES
-        if st.sidebar.button("🔄 Force Live Prices"):
-            try:
-                st.sidebar.write("Fetching live prices...")
-                coin_ids = ["BTC", "ETH", "SOL", "DOT", "ADA"]
-                
-                live_prices = price_fetcher_fallback.fetch_current_prices(coin_ids)
-                st.sidebar.success("✅ Live prices fetched!")
-                st.sidebar.json(live_prices)
-                
-                # Clear cache
-                st.cache_data.clear()
-                st.sidebar.info("Cache cleared - refresh page to see updates")
-                
-            except Exception as e:
-                st.sidebar.error(f"❌ Error: {str(e)}")
-        
-        # CLEAR CACHE
-        if st.sidebar.button("🗑️ Clear Cache"):
+        if st.sidebar.button("🔄 Use Live Prices"):
+            st.session_state['use_live_prices'] = True
             st.cache_data.clear()
-            st.sidebar.success("✅ Cache cleared!")
-            st.sidebar.info("Refresh page to reload data")
+            st.sidebar.success("✅ Switched to live prices!")
+            st.sidebar.info("Refresh page to see changes")
+        
+        if st.sidebar.button("📊 Use Sample Data"):
+            st.session_state['use_live_prices'] = False
+            st.cache_data.clear()
+            st.sidebar.success("✅ Switched to sample data!")
+    
+    # ========== END DEBUG PANEL ==========
     
     # Main content - CÓ THỂ FAIL NHƯNG SIDEBAR VẪN HIỂN THỊ
     if google_sheets_error:
