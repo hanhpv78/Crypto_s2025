@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+streamlit_env/
+.env
+.DS_Store
+gcp_credentials.json
+.streamlit/secrets.toml
+*.log
+.vscode/
+node_modules/
