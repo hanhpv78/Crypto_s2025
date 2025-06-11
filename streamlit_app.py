@@ -222,9 +222,59 @@ def load_analytics_data():
         return {}, str(e)
 
 def main():
-    # Header
     st.markdown('<h1 class="main-header">🚀 Crypto Portfolio Dashboard</h1>', unsafe_allow_html=True)
-    
+
+    # ========== DEBUG PANEL LUÔN HIỂN THỊ ĐẦU SIDEBAR ==========
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🔧 Debug Panel")
+    debug_enabled = st.sidebar.checkbox("🔍 Show Debug Info")
+    if debug_enabled:
+        st.sidebar.markdown("#### 🔐 Credentials")
+        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+            st.sidebar.success("✅ GCP Secrets Found")
+            st.sidebar.code(f"Project: {st.secrets['gcp_service_account'].get('project_id', 'N/A')}")
+        else:
+            st.sidebar.error("❌ No GCP Secrets")
+
+        st.sidebar.markdown("#### 🌐 API Tests")
+        if st.sidebar.button("Test CoinGecko"):
+            with st.spinner("Testing..."):
+                try:
+                    resp = requests.get("https://api.coingecko.com/api/v3/ping", timeout=5)
+                    if resp.status_code == 200:
+                        st.sidebar.success("✅ CoinGecko OK")
+                        price_resp = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd", timeout=5)
+                        if price_resp.status_code == 200:
+                            prices = price_resp.json()
+                            st.sidebar.json(prices)
+                        else:
+                            st.sidebar.error(f"Price fetch failed: {price_resp.status_code}")
+                    else:
+                        st.sidebar.error(f"API failed: {resp.status_code}")
+                except Exception as e:
+                    st.sidebar.error(f"Error: {str(e)}")
+
+        if st.sidebar.button("Test Live Prices"):
+            with st.spinner("Fetching..."):
+                try:
+                    live_prices = price_fetcher_fallback.fetch_current_prices(["BTC", "ETH", "SOL"])
+                    st.sidebar.success("✅ Live prices working!")
+                    st.sidebar.json(live_prices)
+                except Exception as e:
+                    st.sidebar.error(f"Error: {str(e)}")
+
+        st.sidebar.markdown("#### ⚡ Actions")
+        if st.sidebar.button("🔄 Use Live Prices"):
+            st.session_state['use_live_prices'] = True
+            st.cache_data.clear()
+            st.sidebar.success("✅ Switched to live prices!")
+            st.sidebar.info("Refresh page to see changes")
+        if st.sidebar.button("📊 Use Sample Data"):
+            st.session_state['use_live_prices'] = False
+            st.cache_data.clear()
+            st.sidebar.success("✅ Switched to sample data!")
+    # ========== END DEBUG PANEL ==========
+
     # Sidebar
     st.sidebar.title("🔧 Dashboard Controls")
     
@@ -251,71 +301,6 @@ def main():
     # Time info
     st.sidebar.markdown("### ⏰ Last Updated")
     st.sidebar.markdown(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
-    # ========== 🔧 DEBUG PANEL - THÊM ĐOẠN NÀY ==========
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🔧 Debug Panel")
-    
-    debug_enabled = st.sidebar.checkbox("🔍 Show Debug Info")
-    
-    if debug_enabled:
-        # Credentials Check
-        st.sidebar.markdown("#### 🔐 Credentials")
-        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
-            st.sidebar.success("✅ GCP Secrets Found")
-            st.sidebar.code(f"Project: {st.secrets['gcp_service_account'].get('project_id', 'N/A')}")
-        else:
-            st.sidebar.error("❌ No GCP Secrets")
-        
-        # API Tests
-        st.sidebar.markdown("#### 🌐 API Tests")
-        
-        if st.sidebar.button("Test CoinGecko"):
-            with st.sidebar:
-                with st.spinner("Testing..."):
-                    try:
-                        import requests
-                        resp = requests.get("https://api.coingecko.com/api/v3/ping", timeout=5)
-                        if resp.status_code == 200:
-                            st.success("✅ CoinGecko OK")
-                            
-                            # Test price fetch
-                            price_resp = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd", timeout=5)
-                            if price_resp.status_code == 200:
-                                prices = price_resp.json()
-                                st.json(prices)
-                            else:
-                                st.error(f"Price fetch failed: {price_resp.status_code}")
-                        else:
-                            st.error(f"API failed: {resp.status_code}")
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-        
-        if st.sidebar.button("Test Live Prices"):
-            with st.sidebar:
-                with st.spinner("Fetching..."):
-                    try:
-                        live_prices = price_fetcher_fallback.fetch_current_prices(["BTC", "ETH", "SOL"])
-                        st.success("✅ Live prices working!")
-                        st.json(live_prices)
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-        
-        # Force Actions
-        st.sidebar.markdown("#### ⚡ Actions")
-        
-        if st.sidebar.button("🔄 Use Live Prices"):
-            st.session_state['use_live_prices'] = True
-            st.cache_data.clear()
-            st.sidebar.success("✅ Switched to live prices!")
-            st.sidebar.info("Refresh page to see changes")
-        
-        if st.sidebar.button("📊 Use Sample Data"):
-            st.session_state['use_live_prices'] = False
-            st.cache_data.clear()
-            st.sidebar.success("✅ Switched to sample data!")
-    
-    # ========== END DEBUG PANEL ==========
     
     # Main content - CÓ THỂ FAIL NHƯNG SIDEBAR VẪN HIỂN THỊ
     if google_sheets_error:
