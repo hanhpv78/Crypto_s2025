@@ -6,7 +6,7 @@ from datetime import datetime
 from streamlit_app   import TICKER_TO_ID_MAPPING
 
 # Đường dẫn đến file credentials
-creds_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "gcp_credentials.json")
+creds_file = os.path.join(os.path.dirname(__file__), "gcp_credentials.json")
 
 try:
     # Khởi tạo client với thông tin từ file
