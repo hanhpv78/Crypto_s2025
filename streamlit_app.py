@@ -132,16 +132,26 @@ TICKER_TO_ID_MAPPING = {
     "ACE": "ace-casino"
 }
 
+# Sửa function load_portfolio_data để không cache khi live prices
+
 @st.cache_data(ttl=300)  # Cache 5 phút
 def load_portfolio_data():
     """Load portfolio data với caching"""
     try:
-        portfolio = data_access.get_portfolio()
+        # Kiểm tra live prices mode
+        use_live = st.session_state.get('use_live_prices', False)
+        
+        if use_live:
+            # Không cache khi dùng live prices
+            portfolio = data_access.get_portfolio()
+        else:
+            # Cache bình thường
+            portfolio = data_access.get_portfolio()
+            
         potential_coins = data_access.get_potential_coins()
         return portfolio, potential_coins, None
     except Exception as e:
         st.error(f"❌ Error loading data: {str(e)}")
-        # Trả về dữ liệu mẫu thay vì crash
         return get_sample_data(), [], None
 
 def get_sample_data():

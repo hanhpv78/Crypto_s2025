@@ -46,14 +46,17 @@ except Exception as e:
 
 # ==================== DATA ACCESS FUNCTIONS ====================
 
+# Sửa function get_portfolio để check live prices
+
 def get_portfolio():
-    """Get portfolio data with timeout protection"""
+    """Get portfolio data with live prices option"""
     try:
         # Check if live prices requested
         use_live = False
         try:
             import streamlit as st
             use_live = st.session_state.get('use_live_prices', False)
+            print(f"📊 Use live prices: {use_live}")
         except Exception:
             pass
         
@@ -61,33 +64,15 @@ def get_portfolio():
             print("🔄 Getting portfolio with live prices...")
             return get_portfolio_with_live_prices()
         
-        # Normal flow - try Google Sheets with timeout
+        # Normal flow - get from Google Sheets
         if portfolio_sheet is not None:
             try:
                 print("📊 Loading portfolio from Google Sheets...")
-                import signal
-                
-                def timeout_handler(signum, frame):
-                    raise TimeoutError("Google Sheets timeout")
-                
-                # Set 10 second timeout
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(10)
-                
-                try:
-                    records = portfolio_sheet.get_all_records()
-                    signal.alarm(0)  # Cancel timeout
-                    print(f"✅ Loaded {len(records)} portfolio records")
-                    return records
-                except TimeoutError:
-                    print("⏰ Google Sheets timeout, using sample data")
-                    signal.alarm(0)
-                except Exception as e:
-                    print(f"❌ Google Sheets error: {e}")
-                    signal.alarm(0)
-                    
+                records = portfolio_sheet.get_all_records()
+                print(f"✅ Loaded {len(records)} portfolio records")
+                return records
             except Exception as e:
-                print(f"❌ Error reading portfolio: {e}")
+                print(f"❌ Google Sheets error: {e}")
         
         # Fallback sample data
         print("📝 Using sample portfolio data")
@@ -99,11 +84,7 @@ def get_portfolio():
         
     except Exception as e:
         print(f"❌ Error in get_portfolio: {e}")
-        return [
-            {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
-            {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
-            {"Coin Name": "Cardano", "Coin ID": "ADA", "Quantity": 1000, "Avg Buy Price": 0.45, "Current Price": 0.52, "Current Value": 520, "P&L": 70, "ROI %": 15.56}
-        ]
+        return []
 
 def get_potential_coins():
     if potential_coins_sheet is not None:
@@ -462,9 +443,9 @@ def get_portfolio_with_live_prices():
                 try:
                     portfolio_data = portfolio_sheet.get_all_records()
                 except Exception:
-                    portfolio_data = get_portfolio()  # fallback
+                    portfolio_data = get_fallback_portfolio()  # fallback
             else:
-                portfolio_data = get_portfolio()  # fallback
+                portfolio_data = get_fallback_portfolio()  # fallback
             
             # Lấy coin IDs
             coin_ids = [coin.get("Coin ID", "") for coin in portfolio_data if coin.get("Coin ID")]
@@ -477,6 +458,7 @@ def get_portfolio_with_live_prices():
             
             # Fetch live prices
             live_prices = fetch_current_prices(coin_ids)
+            print(f"📈 Live prices result: {live_prices}")
             
             # Update prices
             for coin in portfolio_data:
@@ -508,11 +490,19 @@ def get_portfolio_with_live_prices():
         except TimeoutError:
             signal.alarm(0)
             print("⏰ Live prices timeout, using static data")
-            return get_portfolio()
+            return get_fallback_portfolio()
             
     except Exception as e:
         print(f"❌ get_portfolio_with_live_prices error: {e}")
-        return get_portfolio()
+        return get_fallback_portfolio()
+
+def get_fallback_portfolio():
+    """Fallback portfolio data"""
+    return [
+        {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
+        {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
+        {"Coin Name": "Cardano", "Coin ID": "ADA", "Quantity": 1000, "Avg Buy Price": 0.45, "Current Price": 0.52, "Current Value": 520, "P&L": 70, "ROI %": 15.56}
+    ]
 
 # Thay thế function test_live_prices_direct
 
