@@ -351,75 +351,46 @@ def get_coin_historical_prices(coin_id, days=30):
         print(f"Error getting coin historical prices: {e}")
         return []
 
+# Thay thế function fetch_current_prices
+
 def fetch_current_prices(coin_ids):
     """
-    Fetch current prices with timeout protection
+    Fetch current prices using price_fetcher_fallback module
     """
     try:
         print(f"🔄 Fetching live prices for: {coin_ids}")
         
         import price_fetcher_fallback
-        import asyncio
         
         # Kiểm tra function tồn tại
-        if not hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
-            print("❌ fetch_coin_prices_with_fallback not found")
-            return get_fallback_prices(coin_ids)
-        
-        # Chuyển đổi coin_ids
-        formatted_ids = []
-        symbol_to_original = {}
-        
-        for coin_id in coin_ids:
-            coin_lower = str(coin_id).lower()
-            original_id = coin_lower
+        if hasattr(price_fetcher_fallback, 'fetch_current_prices'):
+            print("✅ Using fetch_current_prices from price_fetcher_fallback")
+            result = price_fetcher_fallback.fetch_current_prices(coin_ids)
+        elif hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
+            print("✅ Using fetch_coin_prices_with_fallback directly")
+            import asyncio
             
-            if coin_lower == "btc":
-                formatted_ids.append("bitcoin")
-                symbol_to_original["bitcoin"] = original_id
-            elif coin_lower == "eth":
-                formatted_ids.append("ethereum") 
-                symbol_to_original["ethereum"] = original_id
-            elif coin_lower == "ada":
-                formatted_ids.append("cardano")
-                symbol_to_original["cardano"] = original_id
-            else:
-                formatted_ids.append(coin_lower)
-                symbol_to_original[coin_lower] = original_id
-        
-        print(f"📡 Calling API for: {formatted_ids}")
-        
-        # Event loop với timeout
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        # Gọi với timeout 15 seconds
-        try:
+            # Event loop
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
             result = loop.run_until_complete(
-                asyncio.wait_for(
-                    price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids),
-                    timeout=15.0
-                )
+                price_fetcher_fallback.fetch_coin_prices_with_fallback(coin_ids)
             )
-            print(f"✅ API result: {result}")
-        except asyncio.TimeoutError:
-            print("⏰ API timeout, using fallback prices")
+        else:
+            print("❌ No price function found")
             return get_fallback_prices(coin_ids)
         
-        # Chuyển đổi kết quả
-        final_result = {}
-        for gecko_id, original_id in symbol_to_original.items():
-            if gecko_id in result:
-                final_result[original_id] = result[gecko_id]
-        
-        print(f"✅ Final result: {final_result}")
-        return final_result if final_result else get_fallback_prices(coin_ids)
+        print(f"✅ API result: {result}")
+        return result if result else get_fallback_prices(coin_ids)
         
     except Exception as e:
         print(f"❌ fetch_current_prices error: {e}")
+        import traceback
+        traceback.print_exc()
         return get_fallback_prices(coin_ids)
 
 def get_fallback_prices(coin_ids):
@@ -510,39 +481,34 @@ def get_portfolio_with_live_prices():
         print(f"❌ get_portfolio_with_live_prices error: {e}")
         return get_portfolio()
 
-# Thêm function test trực tiếp
+# Thay thế function test_live_prices_direct
 
 def test_live_prices_direct():
-    """Test live prices với debug output"""
+    """Test live prices với debug output chi tiết"""
     try:
         test_coins = ["bitcoin", "ethereum", "solana"]
-        print(f"Testing live prices for: {test_coins}")
+        print(f"🧪 Testing live prices for: {test_coins}")
         
         import price_fetcher_fallback
-        import asyncio
         
-        # Kiểm tra function có tồn tại không
-        if not hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
-            print("❌ Function fetch_coin_prices_with_fallback not found!")
+        # Debug: Kiểm tra các function có sẵn
+        print("📋 Available functions in price_fetcher_fallback:")
+        for attr in dir(price_fetcher_fallback):
+            if not attr.startswith('_'):
+                print(f"  - {attr}")
+        
+        # Test function chính
+        if hasattr(price_fetcher_fallback, 'fetch_current_prices'):
+            print("✅ Found fetch_current_prices")
+            result = price_fetcher_fallback.fetch_current_prices(test_coins)
+            print(f"✅ Result: {result}")
+            return result
+        else:
+            print("❌ fetch_current_prices not found!")
             return {}
         
-        # Event loop
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        # Gọi function
-        result = loop.run_until_complete(
-            price_fetcher_fallback.fetch_coin_prices_with_fallback(test_coins)
-        )
-        
-        print(f"✅ Live prices result: {result}")
-        return result
-        
     except Exception as e:
-        print(f"❌ Test live prices error: {e}")
+        print(f"❌ Test error: {e}")
         import traceback
         traceback.print_exc()
         return {}
