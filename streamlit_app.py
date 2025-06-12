@@ -466,8 +466,40 @@ def main():
                 hide_index=True
             )
 
-# XÓA debug panel code ở ngoài main function
-# (Xóa đoạn code "with st.sidebar:" ở cuối file)
+    # ========== HISTORICAL DATA PANEL ==========
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📊 Historical Data")
+    
+    if st.sidebar.button("💾 Update Historical Prices"):
+        with st.spinner("Updating historical prices..."):
+            result = manual_historical_update()
+            st.success(result)
+    
+    if st.sidebar.button("🧪 Test Historical Save"):
+        with st.spinner("Testing historical save..."):
+            result = test_historical_save()
+            st.info(result)
+    
+    # Thêm info về historical data
+    if st.sidebar.button("📈 Show Historical Stats"):
+        historical_data = get_historical_data(30)
+        if historical_data:
+            total_days = len(historical_data)
+            total_records = sum(len(coins) for coins in historical_data.values())
+            st.sidebar.info(f"📊 Historical Data:\n- {total_days} days\n- {total_records} price records")
+        else:
+            st.sidebar.warning("No historical data found")
+
+# Thêm vào main app để start scheduler
+
+# Start historical price scheduler (chỉ chạy 1 lần)
+if 'scheduler_started' not in st.session_state:
+    try:
+        schedule_historical_price_updates()
+        st.session_state.scheduler_started = True
+        print("✅ Historical price scheduler initialized")
+    except Exception as e:
+        print(f"❌ Failed to start scheduler: {e}")
 
 if __name__ == "__main__":
     main()

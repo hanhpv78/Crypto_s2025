@@ -362,15 +362,41 @@ def fetch_current_prices(coin_ids):
         
         import price_fetcher_fallback
         
-        # Kiểm tra function tồn tại
-        if hasattr(price_fetcher_fallback, 'fetch_current_prices'):
-            print("✅ Using fetch_current_prices from price_fetcher_fallback")
-            result = price_fetcher_fallback.fetch_current_prices(coin_ids)
-        elif hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
-            print("✅ Using fetch_coin_prices_with_fallback directly")
-            import asyncio
+        # Convert coin symbols to CoinGecko IDs
+        formatted_ids = []
+        symbol_to_original = {}
+        
+        for coin_id in coin_ids:
+            coin_str = str(coin_id).lower()
             
-            # Event loop
+            # Map symbols to CoinGecko IDs
+            if coin_str in ["btc", "bitcoin"]:
+                formatted_ids.append("bitcoin")
+                symbol_to_original["bitcoin"] = coin_str
+            elif coin_str in ["eth", "ethereum"]:
+                formatted_ids.append("ethereum")
+                symbol_to_original["ethereum"] = coin_str
+            elif coin_str in ["ada", "cardano"]:
+                formatted_ids.append("cardano")
+                symbol_to_original["cardano"] = coin_str
+            elif coin_str in ["sol", "solana"]:
+                formatted_ids.append("solana")
+                symbol_to_original["solana"] = coin_str
+            elif coin_str in ["dot", "polkadot"]:
+                formatted_ids.append("polkadot")
+                symbol_to_original["polkadot"] = coin_str
+            else:
+                # Assume it's already a CoinGecko ID
+                formatted_ids.append(coin_str)
+                symbol_to_original[coin_str] = coin_str
+        
+        print(f"📡 Mapped to CoinGecko IDs: {formatted_ids}")
+        
+        # Fetch prices
+        if hasattr(price_fetcher_fallback, 'fetch_current_prices'):
+            result = price_fetcher_fallback.fetch_current_prices(formatted_ids)
+        elif hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
+            import asyncio
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
@@ -378,14 +404,21 @@ def fetch_current_prices(coin_ids):
                 asyncio.set_event_loop(loop)
             
             result = loop.run_until_complete(
-                price_fetcher_fallback.fetch_coin_prices_with_fallback(coin_ids)
+                price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids)
             )
         else:
             print("❌ No price function found")
             return get_fallback_prices(coin_ids)
         
-        print(f"✅ API result: {result}")
-        return result if result else get_fallback_prices(coin_ids)
+        # Map back to original coin IDs
+        final_result = {}
+        for gecko_id, price_data in result.items():
+            if gecko_id in symbol_to_original:
+                original_id = symbol_to_original[gecko_id]
+                final_result[original_id] = price_data
+        
+        print(f"✅ Final mapped result: {final_result}")
+        return final_result if final_result else get_fallback_prices(coin_ids)
         
     except Exception as e:
         print(f"❌ fetch_current_prices error: {e}")
@@ -512,3 +545,153 @@ def test_live_prices_direct():
         import traceback
         traceback.print_exc()
         return {}
+
+def save_historical_prices_batch():
+    """
+    Lấy giá hiện tại và lưu vào historical sheet sử dụng append_historical_price
+    """
+    try:
+        print("📊 Starting batch historical price save...")
+        
+        # Lấy danh sách coins từ portfolio và potential coins
+        all_coins = set()
+        
+        # Từ portfolio
+        try:
+            portfolio_data = get_portfolio()
+            for coin in portfolio_data:
+                coin_id = coin.get("Coin ID", "")
+                if coin_id:
+                    all_coins.add(coin_id.lower())
+        except Exception as e:
+            print(f"Error getting portfolio for historical save: {e}")
+        
+        # Từ potential coins
+        try:
+            potential_data = get_potential_coins()
+            for coin in potential_data:
+                coin_id = coin.get("Coin ID", "")
+                if coin_id:
+                    all_coins.add(coin_id.lower())
+        except Exception as e:
+            print(f"Error getting potential coins for historical save: {e}")
+        
+        # Thêm top coins quan trọng
+        top_coins = ["bitcoin", "ethereum", "solana", "cardano", "polkadot", "chainlink"]
+        all_coins.update(top_coins)
+        
+        coin_list = list(all_coins)
+        print(f"📈 Fetching historical prices for {len(coin_list)} coins: {coin_list}")
+        
+        # Fetch current prices
+        current_prices = fetch_current_prices(coin_list)
+        
+        if not current_prices:
+            print("❌ No prices fetched for historical save")
+            return 0
+        
+        # Save to historical sheet using existing function
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        saved_count = 0
+        
+        for coin_id, price_data in current_prices.items():
+            try:
+                current_price = price_data.get("current_price", 0)
+                market_cap = price_data.get("market_cap", 0)
+                
+                if current_price > 0:
+                    # Sử dụng function có sẵn append_historical_price
+                    append_historical_price(coin_id, current_date, current_price, market_cap)
+                    saved_count += 1
+                    
+            except Exception as e:
+                print(f"Error saving historical price for {coin_id}: {e}")
+        
+        print(f"✅ Saved {saved_count} historical prices for {current_date}")
+        return saved_count
+        
+    except Exception as e:
+        print(f"❌ Error in save_historical_prices_batch: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
+def manual_historical_update():
+    """
+    Manual trigger for historical price update
+    """
+    try:
+        print("🔄 Manual historical price update triggered...")
+        count = save_historical_prices_batch()
+        return f"✅ Updated {count} coins with historical prices"
+        
+    except Exception as e:
+        error_msg = f"❌ Manual update failed: {e}"
+        print(error_msg)
+        return error_msg
+
+def schedule_historical_price_updates():
+    """
+    Schedule historical price updates (call this daily)
+    """
+    try:
+        import threading
+        import time
+        
+        def daily_update():
+            while True:
+                try:
+                    # Check if it's a new day (run at 00:05 daily)
+                    current_hour = datetime.now().hour
+                    current_minute = datetime.now().minute
+                    
+                    if current_hour == 0 and current_minute == 5:
+                        print("🕐 Running daily historical price update...")
+                        save_historical_prices_batch()
+                        time.sleep(3600)  # Sleep 1 hour to avoid duplicate runs
+                    else:
+                        time.sleep(300)  # Check every 5 minutes
+                        
+                except Exception as e:
+                    print(f"Error in daily update: {e}")
+                    time.sleep(3600)  # Sleep 1 hour on error
+        
+        # Start background thread
+        thread = threading.Thread(target=daily_update, daemon=True)
+        thread.start()
+        print("✅ Historical price scheduler started")
+        
+    except Exception as e:
+        print(f"Error starting scheduler: {e}")
+
+def test_historical_save():
+    """
+    Test function để kiểm tra historical save
+    """
+    try:
+        print("🧪 Testing historical price save...")
+        
+        # Test với một vài coins
+        test_coins = ["bitcoin", "ethereum"]
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Fetch prices
+        prices = fetch_current_prices(test_coins)
+        print(f"📊 Fetched prices: {prices}")
+        
+        # Save using existing function
+        saved_count = 0
+        for coin_id, price_data in prices.items():
+            current_price = price_data.get("current_price", 0)
+            market_cap = price_data.get("market_cap", 0)
+            
+            if current_price > 0:
+                append_historical_price(coin_id, current_date, current_price, market_cap)
+                saved_count += 1
+        
+        return f"✅ Test saved {saved_count} historical prices"
+        
+    except Exception as e:
+        error_msg = f"❌ Test failed: {e}"
+        print(error_msg)
+        return error_msg
