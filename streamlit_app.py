@@ -1,515 +1,499 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime, timedelta
+import sys
+import os
+import yfinance as yf
 import asyncio
 import aiohttp
-import os
-import sys
-from pathlib import Path
-import requests  # For API testing
-import price_fetcher_fallback  # For live prices
+import requests
+from typing import Dict, List, Optional
+import time
+import numpy as np
 
-# Add current directory to Python path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
-
-# Import modules với error handling
-try:
-    import data_access
-    import notification
-    import_success = True
-except ImportError as e:
-    import_success = False
-    import_error = str(e)
-
-# Cấu hình trang
+# Set page config FIRST
 st.set_page_config(
-    page_title="🚀 Crypto Portfolio Dashboard",
-    page_icon="🚀",
+    page_title="Tier 1 Crypto Portfolio Dashboard", 
+    page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Kiểm tra import status
-if not import_success:
-    st.error(f"❌ Import error: {import_error}")
-    st.error("Please check if all required files are in the same directory")
-    
-    # Debug info
-    st.write("**Debug Information:**")
-    st.write(f"Current directory: {os.getcwd()}")
-    st.write(f"Python path: {sys.path}")
-    
-    files_in_dir = os.listdir('.')
-    st.write("Files in current directory:")
-    for file in files_in_dir:
-        st.write(f"- {file}")
-    
-    st.info("Required files: data_access.py, price_fetcher_fallback.py, notification.py, gcp_credentials.json")
-    st.stop()
-else:
-    st.success("✅ All modules imported successfully!")
-
-# Custom CSS
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 3rem;
-        color: #4CAF50;
-        text-align: center;
-        margin-bottom: 2rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-    .metric-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .profit { 
-        color: #4CAF50; 
-        font-weight: bold;
-    }
-    .loss { 
-        color: #f44336; 
-        font-weight: bold;
-    }
-    .sidebar-info {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-    }
-    .status-success {
-        background-color: #d4edda;
-        color: #155724;
-        padding: 0.5rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
-    }
-    .status-error {
-        background-color: #f8d7da;
-        color: #721c24;
-        padding: 0.5rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Mapping từ Main.py
-TICKER_TO_ID_MAPPING = {
-    "BTC": "bitcoin",
-    "ETH": "ethereum",
-    "XRP": "ripple",
-    "BCH": "bitcoin-cash",
-    "LTC": "litecoin",
-    "ADA": "cardano",
-    "DOT": "polkadot",
-    "LINK": "chainlink",
-    "BNB": "binancecoin",
-    "XLM": "stellar",
-    "DOGE": "dogecoin",
-    "USDT": "tether",
-    "USDC": "usd-coin",
-    "SHIB": "shiba-inu",
-    "MATIC": "polygon",
-    "SOL": "solana",
-    "AVAX": "avalanche-2",
-    "TIA": "celestia",
-    "ARB": "arbitrum",
-    "RNDR": "render-token",
-    "ONDO": "ondo-finance",
-    "OM": "mantra-dao",
-    "PIXEL": "pixels",
-    "JUP": "jupiter",
-    "PENDLE": "pendle",
-    "ACE": "ace-casino"
-}
-
-# Sửa function load_portfolio_data để không cache khi live prices
-
-@st.cache_data(ttl=300)  # Cache 5 phút
-def load_portfolio_data():
-    """Load portfolio data với caching"""
-    try:
-        # Kiểm tra live prices mode
-        use_live = st.session_state.get('use_live_prices', False)
+# === PRICE FETCHER CLASS ===
+class TierOnePriceFetcher:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
         
-        if use_live:
-            # Không cache khi dùng live prices
-            portfolio = data_access.get_portfolio()
-        else:
-            # Cache bình thường
-            portfolio = data_access.get_portfolio()
-            
-        potential_coins = data_access.get_potential_coins()
-        return portfolio, potential_coins, None
-    except Exception as e:
-        st.error(f"❌ Error loading data: {str(e)}")
-        return get_sample_data(), [], None
-
-def get_sample_data():
-    """Dữ liệu mẫu khi Google Sheets lỗi"""
-    return [
-        {
-            "Coin ID": "BTC",
-            "Coin Name": "Bitcoin", 
-            "Quantity": 0.5,
-            "Avg Buy Price": 45000,
-            "Current Price": 47000,
-            "Market Cap": 900000000000
+        # Top tier 1 coins
+        self.tier1_coins = {
+            'bitcoin': {'symbol': 'BTC', 'name': 'Bitcoin'},
+            'ethereum': {'symbol': 'ETH', 'name': 'Ethereum'},
+            'binancecoin': {'symbol': 'BNB', 'name': 'BNB'},
+            'solana': {'symbol': 'SOL', 'name': 'Solana'},
+            'cardano': {'symbol': 'ADA', 'name': 'Cardano'},
+            'avalanche-2': {'symbol': 'AVAX', 'name': 'Avalanche'},
+            'polkadot': {'symbol': 'DOT', 'name': 'Polkadot'},
+            'chainlink': {'symbol': 'LINK', 'name': 'Chainlink'},
+            'polygon': {'symbol': 'MATIC', 'name': 'Polygon'},
+            'uniswap': {'symbol': 'UNI', 'name': 'Uniswap'},
+            'litecoin': {'symbol': 'LTC', 'name': 'Litecoin'},
+            'internet-computer': {'symbol': 'ICP', 'name': 'Internet Computer'},
+            'ethereum-classic': {'symbol': 'ETC', 'name': 'Ethereum Classic'},
+            'stellar': {'symbol': 'XLM', 'name': 'Stellar'},
+            'vechain': {'symbol': 'VET', 'name': 'VeChain'},
+            'filecoin': {'symbol': 'FIL', 'name': 'Filecoin'},
+            'tron': {'symbol': 'TRX', 'name': 'TRON'},
+            'algorand': {'symbol': 'ALGO', 'name': 'Algorand'},
+            'cosmos': {'symbol': 'ATOM', 'name': 'Cosmos'},
+            'near': {'symbol': 'NEAR', 'name': 'NEAR Protocol'}
         }
-    ]
-
-@st.cache_data(ttl=600)  # Cache 10 phút
-def load_analytics_data():
-    """Load analytics data với caching"""
-    try:
-        portfolio = data_access.get_portfolio()
-        
-        total_value = 0
-        total_cost = 0
-        analytics = {
-            "total_coins": len(portfolio),
-            "performance_by_coin": [],
-            "summary": {}
-        }
-        
-        for coin in portfolio:
-            quantity = coin.get("Quantity", 0) or 0
-            avg_buy_price = coin.get("Avg Buy Price", 0) or 0
-            current_price = coin.get("Current Price", 0) or 0
-            market_cap = coin.get("Market Cap", 0) or 0
-            
-            current_value = quantity * current_price
-            cost = quantity * avg_buy_price
-            gain_loss = current_value - cost
-            roi_percent = (gain_loss / cost * 100) if cost > 0 else 0
-            
-            total_value += current_value
-            total_cost += cost
-            
-            coin_analytics = {
-                "coin_name": coin.get("Coin Name", coin.get("Coin ID")),
-                "coin_id": coin.get("Coin ID"),
-                "current_value": current_value,
-                "cost": cost,
-                "gain_loss": gain_loss,
-                "roi_percent": roi_percent,
-                "market_cap": market_cap,
-                "allocation_percent": 0
+    
+    def create_tier1_universe(self) -> pd.DataFrame:
+        """Fetch real-time Tier 1 universe from CoinGecko"""
+        try:
+            # Fetch top 200 coins
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {
+                'vs_currency': 'usd',
+                'order': 'market_cap_desc',
+                'per_page': 200,
+                'page': 1,
+                'sparkline': False,
+                'price_change_percentage': '1h,24h,7d,30d'
             }
-            analytics["performance_by_coin"].append(coin_analytics)
+            
+            response = self.session.get(url, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Filter only tier 1 coins
+                tier1_data = []
+                for coin in data:
+                    if coin['id'] in self.tier1_coins or coin['market_cap_rank'] <= 50:
+                        symbol = coin['symbol'].upper()
+                        
+                        tier1_data.append({
+                            'symbol': symbol,
+                            'name': coin['name'],
+                            'price': coin['current_price'] or 0,
+                            'market_cap': coin['market_cap'] or 0,
+                            'change_1h': coin.get('price_change_percentage_1h_in_currency', 0) or 0,
+                            'change_24h': coin.get('price_change_percentage_24h', 0) or 0,
+                            'change_7d': coin.get('price_change_percentage_7d_in_currency', 0) or 0,
+                            'change_30d': coin.get('price_change_percentage_30d_in_currency', 0) or 0,
+                            'volume_24h': coin['total_volume'] or 0,
+                            'rank': coin['market_cap_rank'] or 999,
+                            'source': 'CoinGecko',
+                            'last_updated': datetime.now().isoformat(),
+                            'coin_id': coin['id']
+                        })
+                
+                df = pd.DataFrame(tier1_data)
+                df = df.sort_values('rank').reset_index(drop=True)
+                
+                st.success(f"✅ Fetched {len(df)} Tier 1 coins from CoinGecko")
+                return df
+            
+            else:
+                st.warning(f"⚠️ CoinGecko API returned {response.status_code}")
+                return self._get_fallback_data()
+                
+        except Exception as e:
+            st.error(f"❌ Error fetching data: {str(e)}")
+            return self._get_fallback_data()
+    
+    def _get_fallback_data(self) -> pd.DataFrame:
+        """Fallback demo data"""
+        fallback_data = []
         
-        # Calculate allocation percentages
-        for coin_analytics in analytics["performance_by_coin"]:
-            coin_analytics["allocation_percent"] = (coin_analytics["current_value"] / total_value * 100) if total_value > 0 else 0
+        for i, (coin_id, info) in enumerate(self.tier1_coins.items()):
+            # Generate realistic demo prices
+            base_prices = {
+                'BTC': 67000, 'ETH': 3500, 'BNB': 600, 'SOL': 160, 'ADA': 0.52,
+                'AVAX': 35, 'DOT': 6.8, 'LINK': 15.2, 'MATIC': 0.95, 'UNI': 12.5,
+                'LTC': 180, 'ICP': 12.8, 'ETC': 32.5, 'XLM': 0.12, 'VET': 0.045,
+                'FIL': 8.2, 'TRX': 0.11, 'ALGO': 0.28, 'ATOM': 11.5, 'NEAR': 3.8
+            }
+            
+            symbol = info['symbol']
+            price = base_prices.get(symbol, 1.0)
+            
+            fallback_data.append({
+                'symbol': symbol,
+                'name': info['name'],
+                'price': price,
+                'market_cap': price * 1000000000 * (50 - i),  # Decreasing market cap
+                'change_1h': np.random.uniform(-2, 2),
+                'change_24h': np.random.uniform(-10, 10),
+                'change_7d': np.random.uniform(-20, 20),
+                'change_30d': np.random.uniform(-40, 40),
+                'volume_24h': price * 1000000 * (100 - i),
+                'rank': i + 1,
+                'source': 'Demo',
+                'last_updated': datetime.now().isoformat(),
+                'coin_id': coin_id
+            })
         
-        # Sort by performance
-        analytics["performance_by_coin"].sort(key=lambda x: x["roi_percent"], reverse=True)
+        df = pd.DataFrame(fallback_data)
+        st.warning(f"⚠️ Using demo data ({len(df)} coins)")
+        return df
+    
+    def detect_universe_changes(self, current_df: pd.DataFrame, previous_symbols: set) -> Dict:
+        """Detect changes in universe"""
+        current_symbols = set(current_df['symbol'].tolist())
         
-        # Summary
-        total_gain_loss = total_value - total_cost
-        total_roi = (total_gain_loss / total_cost * 100) if total_cost > 0 else 0
+        new_coins = current_symbols - previous_symbols
+        removed_coins = previous_symbols - current_symbols
         
-        analytics["summary"] = {
-            "total_value": total_value,
-            "total_cost": total_cost,
-            "total_gain_loss": total_gain_loss,
-            "total_roi_percent": total_roi,
-            "profitable_coins": len([c for c in analytics["performance_by_coin"] if c["roi_percent"] > 0]),
-            "losing_coins": len([c for c in analytics["performance_by_coin"] if c["roi_percent"] < 0])
+        return {
+            'new_coins': list(new_coins),
+            'removed_coins': list(removed_coins),
+            'total_current': len(current_symbols),
+            'total_previous': len(previous_symbols)
         }
+
+    def detect_significant_movements(self, df: pd.DataFrame, threshold: float = 20.0) -> pd.DataFrame:
+        """Detect significant movements"""
+        if df.empty:
+            return pd.DataFrame()
         
-        return analytics, None
-    except Exception as e:
-        return {}, str(e)
+        significant_moves = df[
+            (abs(df['change_30d']) >= threshold) & 
+            (df['change_30d'] != 0)
+        ].copy()
+        
+        if not significant_moves.empty:
+            significant_moves = significant_moves.sort_values('change_30d', key=abs, ascending=False)
+            significant_moves['movement_type'] = significant_moves['change_30d'].apply(
+                lambda x: '🚀 PUMP' if x > 0 else '📉 DUMP'
+            )
+        
+        return significant_moves
 
+# === HISTORICAL DATA FUNCTIONS ===
+@st.cache_data(ttl=600)
+def get_historical_prices_top10(symbols_list, period="1y"):
+    """Get historical prices for top 10 coins"""
+    historical_data = {}
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for i, symbol in enumerate(symbols_list[:10]):  # Limit to 10
+        try:
+            status_text.text(f"Loading {symbol} historical data... ({i+1}/{min(len(symbols_list), 10)})")
+            
+            # Create ticker symbol for yfinance
+            ticker_map = {
+                'BTC': 'BTC-USD', 'ETH': 'ETH-USD', 'BNB': 'BNB-USD',
+                'SOL': 'SOL-USD', 'ADA': 'ADA-USD', 'AVAX': 'AVAX-USD',
+                'DOT': 'DOT-USD', 'LINK': 'LINK-USD', 'MATIC': 'MATIC-USD',
+                'UNI': 'UNI-USD', 'LTC': 'LTC-USD'
+            }
+            
+            ticker = ticker_map.get(symbol, f'{symbol}-USD')
+            
+            # Get data from yfinance
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=period)
+            
+            if not hist.empty:
+                historical_data[symbol] = {
+                    'dates': hist.index.tolist(),
+                    'prices': hist['Close'].tolist(),
+                    'symbol': symbol
+                }
+            
+            progress_bar.progress((i + 1) / min(len(symbols_list), 10))
+            
+        except Exception as e:
+            st.warning(f"⚠️ Cannot get data for {symbol}: {str(e)}")
+            continue
+    
+    status_text.empty()
+    progress_bar.empty()
+    
+    return historical_data
+
+# === MAIN APP ===
 def main():
-    st.markdown('<h1 class="main-header">🚀 Crypto Portfolio Dashboard</h1>', unsafe_allow_html=True)
-
-    # ========== DEBUG PANEL LUÔN HIỂN THỊ ĐẦU SIDEBAR ==========
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🔧 Debug Panel")
-    debug_enabled = st.sidebar.checkbox("🔍 Show Debug Info")
-    if debug_enabled:
-        st.sidebar.markdown("#### 🔐 Credentials")
-        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
-            st.sidebar.success("✅ GCP Secrets Found")
-            st.sidebar.code(f"Project: {st.secrets['gcp_service_account'].get('project_id', 'N/A')}")
-        else:
-            st.sidebar.error("❌ No GCP Secrets")
-
-        st.sidebar.markdown("#### 🌐 API Tests")
-        if st.sidebar.button("Test CoinGecko"):
-            with st.spinner("Testing..."):
-                try:
-                    resp = requests.get("https://api.coingecko.com/api/v3/ping", timeout=5)
-                    if resp.status_code == 200:
-                        st.sidebar.success("✅ CoinGecko OK")
-                        price_resp = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd", timeout=5)
-                        if price_resp.status_code == 200:
-                            prices = price_resp.json()
-                            st.sidebar.json(prices)
-                        else:
-                            st.sidebar.error(f"Price fetch failed: {price_resp.status_code}")
-                    else:
-                        st.sidebar.error(f"API failed: {resp.status_code}")
-                except Exception as e:
-                    st.sidebar.error(f"Error: {str(e)}")
-
-        if st.sidebar.button("Test Live Prices"):
-            with st.spinner("Fetching..."):
-                try:
-                    live_prices = price_fetcher_fallback.fetch_current_prices(["BTC", "ETH", "SOL"])
-                    st.sidebar.success("✅ Live prices working!")
-                    st.sidebar.json(live_prices)
-                except Exception as e:
-                    st.sidebar.error(f"Error: {str(e)}")
-
-        st.sidebar.markdown("#### ⚡ Actions")
-        if st.sidebar.button("🔄 Use Live Prices"):
-            st.session_state['use_live_prices'] = True
-            st.cache_data.clear()
-            st.sidebar.success("✅ Switched to live prices!")
-            st.sidebar.info("Refresh page to see changes")
-        if st.sidebar.button("📊 Use Sample Data"):
-            st.session_state['use_live_prices'] = False
-            st.cache_data.clear()
-            st.sidebar.success("✅ Switched to sample data!")
-    # ========== END DEBUG PANEL ==========
-
-    # Sidebar
-    st.sidebar.title("🔧 Dashboard Controls")
+    st.title("💎 Tier 1 Crypto Portfolio Dashboard")
+    st.markdown("**Real-time Tier 1 Cryptocurrency Universe Tracker**")
+    st.markdown("---")
     
-    # Connection status check - KHÔNG RETURN KHI LỖI
-    st.sidebar.markdown("### 📊 System Status")
-    google_sheets_error = None
-    try:
-        # Test Google Sheets connection
-        test_portfolio = data_access.get_portfolio()
-        st.sidebar.markdown('<div class="status-success">✅ Google Sheets Connected</div>', unsafe_allow_html=True)
-        st.sidebar.markdown(f"📈 Found {len(test_portfolio)} coins in portfolio")
-    except Exception as e:
-        google_sheets_error = str(e)
-        st.sidebar.markdown('<div class="status-error">❌ Google Sheets Error</div>', unsafe_allow_html=True)
-        st.sidebar.error(f"Error: {str(e)}")
-        # KHÔNG return ở đây - tiếp tục hiển thị debug panel
+    # Sidebar controls
+    st.sidebar.header("⚙️ Dashboard Controls")
     
-    # Manual refresh controls
-    st.sidebar.markdown("### 🔄 Data Controls")
-    if st.sidebar.button("🔄 Refresh All Data", type="primary"):
+    # Auto-refresh option
+    auto_refresh = st.sidebar.checkbox("🔄 Auto-refresh (30s)", value=False)
+    
+    # Manual refresh
+    if st.sidebar.button("🔄 Refresh Data", type="primary"):
         st.cache_data.clear()
         st.rerun()
     
-    # Time info
-    st.sidebar.markdown("### ⏰ Last Updated")
-    st.sidebar.markdown(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # Auto-refresh logic
+    if auto_refresh:
+        time.sleep(30)
+        st.rerun()
     
-    # Main content - CÓ THỂ FAIL NHƯNG SIDEBAR VẪN HIỂN THỊ
-    if google_sheets_error:
-        st.error(f"🚨 Cannot connect to Google Sheets: {google_sheets_error}")
-        st.info("🔧 Use the Debug Panel in sidebar to troubleshoot")
+    # Load real-time data
+    with st.spinner("🔍 Fetching Tier 1 cryptocurrency data..."):
+        fetcher = TierOnePriceFetcher()
+        universe_df = fetcher.create_tier1_universe()
         
-        # Hiển thị sample data thay vì crash
-        st.warning("📊 Displaying sample data for demonstration")
-        portfolio = get_sample_data()
-        potential_coins = []
-    else:
-        # Load real data
-        portfolio, potential_coins, error = load_portfolio_data()
-        if error:
-            st.error(f"❌ Error loading data: {error}")
-            portfolio = get_sample_data()
-            potential_coins = []
+        if universe_df.empty:
+            st.error("❌ Cannot load cryptocurrency data")
+            st.stop()
     
-    # Continue với analytics và rest of dashboard...
-    analytics, analytics_error = load_analytics_data()
+    # Store in session state for change detection
+    if "last_universe" not in st.session_state:
+        st.session_state["last_universe"] = set(universe_df['symbol'].tolist())
     
-    if not portfolio:
-        st.warning("⚠️ No portfolio data found. Using sample data.")
-        portfolio = get_sample_data()
+    # === 1. UNIVERSE OVERVIEW ===
+    st.header("1️⃣ Tier 1 Crypto Universe Overview")
     
-    # Metrics dashboard
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        delta_color = "normal" if analytics["summary"]["total_gain_loss"] >= 0 else "inverse"
-        st.metric(
-            label="💰 Total Value",
-            value=f"${analytics['summary']['total_value']:,.2f}",
-            delta=f"${analytics['summary']['total_gain_loss']:,.2f}",
-            delta_color=delta_color
+        st.metric("Total Coins", len(universe_df), help="Number of Tier 1 cryptocurrencies")
+    
+    with col2:
+        total_mcap = universe_df['market_cap'].sum()
+        st.metric("Total Market Cap", f"${total_mcap/1e12:.2f}T", help="Combined market capitalization")
+    
+    with col3:
+        avg_change = universe_df['change_24h'].mean()
+        st.metric("Avg 24h Change", f"{avg_change:+.2f}%", help="Average 24-hour price change")
+    
+    with col4:
+        current_time = datetime.now().strftime("%H:%M:%S")
+        st.metric("Last Update", current_time, help="Data refresh time")
+    
+    # Display universe table
+    st.subheader("📊 Live Universe Data")
+    
+    # Format data for display
+    display_df = universe_df.copy()
+    display_df['Price'] = display_df['price'].apply(lambda x: f"${x:,.4f}")
+    display_df['Market Cap'] = display_df['market_cap'].apply(lambda x: f"${x/1e9:.2f}B")
+    display_df['24h Change'] = display_df['change_24h'].apply(lambda x: f"{x:+.2f}%")
+    display_df['7d Change'] = display_df['change_7d'].apply(lambda x: f"{x:+.2f}%")
+    display_df['Rank'] = display_df['rank']
+    
+    # Select columns to display
+    display_columns = ['symbol', 'name', 'Price', 'Market Cap', '24h Change', '7d Change', 'Rank', 'source']
+    st.dataframe(
+        display_df[display_columns], 
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    # === 2. TOP 10 HISTORICAL CHARTS ===
+    st.header("2️⃣ Top 10 Coins - Historical Price Charts (1 Year)")
+    
+    if len(universe_df) >= 10:
+        top_10 = universe_df.head(10).copy()
+        top_10_symbols = top_10['symbol'].tolist()
+        
+        with st.expander("📈 View Individual Price Charts", expanded=True):
+            st.info(f"📊 Loading 1-year historical data for: {', '.join(top_10_symbols[:5])}...")
+            
+            # Get historical data
+            historical_data = get_historical_prices_top10(top_10_symbols, period="1y")
+            
+            if historical_data:
+                # Create individual charts in 2 columns
+                col1, col2 = st.columns(2)
+                
+                for i, (symbol, data) in enumerate(historical_data.items()):
+                    if i >= 10:  # Limit to 10 charts
+                        break
+                        
+                    target_col = col1 if i % 2 == 0 else col2
+                    
+                    with target_col:
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=data['dates'],
+                            y=data['prices'],
+                            mode='lines',
+                            name=symbol,
+                            line=dict(width=2),
+                            hovertemplate=f'{symbol}<br>Date: %{{x}}<br>Price: $%{{y:,.2f}}<extra></extra>'
+                        ))
+                        
+                        fig.update_layout(
+                            title=f"{symbol} - 1 Year Price Chart",
+                            xaxis_title="Date",
+                            yaxis_title="Price (USD)",
+                            height=300,
+                            showlegend=False,
+                            template="plotly_dark"
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                
+                # Combined normalized chart
+                st.subheader("📈 Combined Performance Comparison")
+                
+                fig_combined = go.Figure()
+                
+                for symbol, data in historical_data.items():
+                    if data['prices']:
+                        # Normalize prices to show percentage change from start
+                        start_price = data['prices'][0]
+                        normalized_prices = [(price/start_price - 1) * 100 for price in data['prices']]
+                        
+                        fig_combined.add_trace(go.Scatter(
+                            x=data['dates'],
+                            y=normalized_prices,
+                            mode='lines',
+                            name=symbol,
+                            line=dict(width=2),
+                            hovertemplate=f'{symbol}<br>Date: %{{x}}<br>Change: %{{y:+.2f}}%<extra></extra>'
+                        ))
+                
+                fig_combined.update_layout(
+                    title="Top 10 Coins - Normalized Performance (% change from 1 year ago)",
+                    xaxis_title="Date",
+                    yaxis_title="Price Change (%)",
+                    height=500,
+                    hovermode='x unified',
+                    template="plotly_dark"
+                )
+                
+                st.plotly_chart(fig_combined, use_container_width=True)
+            
+            else:
+                st.error("❌ Cannot load historical data")
+    
+    # === 3. INDIVIDUAL COIN ANALYSIS ===
+    st.header("3️⃣ Individual Coin Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_coin = st.selectbox(
+            "Select Cryptocurrency",
+            options=universe_df['symbol'].tolist(),
+            index=0
         )
     
     with col2:
-        st.metric(
-            label="📊 Total Cost",
-            value=f"${analytics['summary']['total_cost']:,.2f}"
+        time_period = st.selectbox(
+            "Time Period",
+            options=["1y", "6mo", "3mo", "1mo", "7d"],
+            index=0
         )
     
-    with col3:
-        roi_delta_color = "normal" if analytics["summary"]["total_roi_percent"] >= 0 else "inverse"
-        st.metric(
-            label="📈 ROI %",
-            value=f"{analytics['summary']['total_roi_percent']:.2f}%",
-            delta=f"{analytics['summary']['total_roi_percent']:.2f}%",
-            delta_color=roi_delta_color
-        )
-    
-    with col4:
-        st.metric(
-            label="🎯 Profitable Coins",
-            value=f"{analytics['summary']['profitable_coins']}/{len(portfolio)}",
-            delta=f"+{analytics['summary']['profitable_coins']}"
-        )
-    
-    # Tabs
-    tab1, tab2, tab3 = st.tabs(["📈 Portfolio", "🔍 Potential Coins", "📊 Analytics"])
-    
-    with tab1:
-        st.subheader("💼 Current Portfolio")
+    # Display selected coin info and chart
+    if selected_coin:
+        coin_data = universe_df[universe_df['symbol'] == selected_coin].iloc[0]
         
-        if portfolio:
-            # Create enhanced dataframe
-            portfolio_df = pd.DataFrame(portfolio)
+        # Coin info cards
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Current Price", f"${coin_data['price']:,.4f}")
+        with col2:
+            st.metric("Market Cap", f"${coin_data['market_cap']/1e9:.2f}B")
+        with col3:
+            st.metric("24h Change", f"{coin_data['change_24h']:+.2f}%")
+        with col4:
+            st.metric("Market Rank", f"#{coin_data['rank']}")
+        
+        # Individual coin chart
+        try:
+            ticker_map = {
+                'BTC': 'BTC-USD', 'ETH': 'ETH-USD', 'BNB': 'BNB-USD',
+                'SOL': 'SOL-USD', 'ADA': 'ADA-USD', 'AVAX': 'AVAX-USD',
+                'DOT': 'DOT-USD', 'LINK': 'LINK-USD', 'MATIC': 'MATIC-USD',
+                'UNI': 'UNI-USD', 'LTC': 'LTC-USD'
+            }
             
-            # Calculate additional columns
-            portfolio_df['Current Value'] = portfolio_df.apply(
-                lambda row: (row.get('Quantity', 0) or 0) * (row.get('Current Price', 0) or 0), axis=1
-            )
-            portfolio_df['Cost'] = portfolio_df.apply(
-                lambda row: (row.get('Quantity', 0) or 0) * (row.get('Avg Buy Price', 0) or 0), axis=1
-            )
-            portfolio_df['P&L'] = portfolio_df['Current Value'] - portfolio_df['Cost']
-            portfolio_df['ROI %'] = portfolio_df.apply(
-                lambda row: (row['P&L'] / row['Cost'] * 100) if row['Cost'] > 0 else 0, axis=1
-            )
+            ticker = ticker_map.get(selected_coin, f'{selected_coin}-USD')
             
-            # Format for display
-            display_df = portfolio_df.copy()
-            display_df['Current Price'] = display_df['Current Price'].apply(lambda x: f"${x:.4f}" if pd.notnull(x) else "N/A")
-            display_df['Avg Buy Price'] = display_df['Avg Buy Price'].apply(lambda x: f"${x:.4f}" if pd.notnull(x) else "N/A")
-            display_df['Current Value'] = display_df['Current Value'].apply(lambda x: f"${x:,.2f}")
-            display_df['Cost'] = display_df['Cost'].apply(lambda x: f"${x:,.2f}")
-            display_df['P&L'] = display_df['P&L'].apply(lambda x: f"${x:,.2f}")
-            display_df['ROI %'] = display_df['ROI %'].apply(lambda x: f"{x:.2f}%")
-            
-            # Display table
-            st.dataframe(
-                display_df[['Coin Name', 'Coin ID', 'Quantity', 'Avg Buy Price', 'Current Price', 'Current Value', 'P&L', 'ROI %']],
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            # Charts
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("📊 Portfolio Allocation")
-                if len(portfolio_df) > 0 and portfolio_df['Current Value'].sum() > 0:
-                    fig_pie = px.pie(
-                        portfolio_df, 
-                        values='Current Value', 
-                        names='Coin Name',
-                        title="Portfolio Allocation by Value"
-                    )
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                else:
-                    st.info("No data available for pie chart")
-            
-            with col2:
-                st.subheader("📈 Performance Overview")
-                if len(portfolio_df) > 0:
-                    # Sort by P&L for better visualization
-                    portfolio_sorted = portfolio_df.sort_values('P&L', ascending=True)
+            with st.spinner(f"Loading {selected_coin} chart..."):
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period=time_period)
+                
+                if not hist.empty:
+                    fig = go.Figure()
+                    fig.add_trace(go.Candlestick(
+                        x=hist.index,
+                        open=hist['Open'],
+                        high=hist['High'],
+                        low=hist['Low'],
+                        close=hist['Close'],
+                        name=selected_coin
+                    ))
                     
-                    fig_bar = px.bar(
-                        portfolio_sorted,
-                        x='P&L',
-                        y='Coin Name',
-                        orientation='h',
-                        color='P&L',
-                        color_continuous_scale=['red', 'yellow', 'green'],
-                        title="Profit/Loss by Coin"
+                    fig.update_layout(
+                        title=f"{selected_coin} - {time_period.upper()} Candlestick Chart",
+                        xaxis_title="Date",
+                        yaxis_title="Price (USD)",
+                        height=400,
+                        template="plotly_dark"
                     )
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info("No data available for bar chart")
+                    st.warning(f"⚠️ No historical data available for {selected_coin}")
+                    
+        except Exception as e:
+            st.error(f"❌ Error loading {selected_coin} data: {str(e)}")
     
-    with tab2:
-        st.subheader("🔍 Potential Coins")
+    # === 4. MARKET ANALYSIS ===
+    st.header("4️⃣ Market Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📊 Top Gainers (24h)")
+        top_gainers = universe_df.nlargest(5, 'change_24h')[['symbol', 'name', 'change_24h']]
+        for _, coin in top_gainers.iterrows():
+            st.success(f"🚀 **{coin['symbol']}** ({coin['name']}): +{coin['change_24h']:.2f}%")
+    
+    with col2:
+        st.subheader("📉 Top Losers (24h)")
+        top_losers = universe_df.nsmallest(5, 'change_24h')[['symbol', 'name', 'change_24h']]
+        for _, coin in top_losers.iterrows():
+            st.error(f"📉 **{coin['symbol']}** ({coin['name']}): {coin['change_24h']:.2f}%")
+    
+    # === 5. SIGNIFICANT MOVEMENTS ===
+    st.header("5️⃣ Significant Movements (30-day)")
+    
+    significant_moves = fetcher.detect_significant_movements(universe_df, threshold=20.0)
+    
+    if not significant_moves.empty:
+        st.warning(f"⚠️ {len(significant_moves)} coins with >20% movement in 30 days")
         
-        if potential_coins:
-            potential_df = pd.DataFrame(potential_coins)
-            st.dataframe(potential_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No potential coins data found.")
-    
-    with tab3:
-        st.subheader("📊 Advanced Analytics")
+        moves_display = significant_moves[['symbol', 'name', 'price', 'change_30d', 'movement_type']].copy()
+        moves_display['Price'] = moves_display['price'].apply(lambda x: f"${x:,.4f}")
+        moves_display['30d Change'] = moves_display['change_30d'].apply(lambda x: f"{x:+.2f}%")
         
-        if analytics and analytics["performance_by_coin"]:
-            # Performance table
-            st.subheader("📈 Detailed Performance")
-            perf_display = pd.DataFrame(analytics["performance_by_coin"])
-            perf_display['current_value'] = perf_display['current_value'].apply(lambda x: f"${x:,.2f}")
-            perf_display['cost'] = perf_display['cost'].apply(lambda x: f"${x:,.2f}")
-            perf_display['gain_loss'] = perf_display['gain_loss'].apply(lambda x: f"${x:,.2f}")
-            perf_display['roi_percent'] = perf_display['roi_percent'].apply(lambda x: f"{x:.2f}%")
-            
-            st.dataframe(
-                perf_display.rename(columns={
-                    'coin_name': 'Coin',
-                    'current_value': 'Current Value',
-                    'cost': 'Cost',
-                    'gain_loss': 'Gain/Loss',
-                    'roi_percent': 'ROI %'
-                })[['Coin', 'Current Value', 'Cost', 'Gain/Loss', 'ROI %']],
-                use_container_width=True,
-                hide_index=True
-            )
-
-    # ========== HISTORICAL DATA PANEL ==========
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📊 Historical Data")
+        st.dataframe(
+            moves_display[['symbol', 'name', 'Price', '30d Change', 'movement_type']], 
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.success("✅ No significant movements (>20%) in the last 30 days")
     
-    if st.sidebar.button("💾 Update Historical Prices"):
-        with st.spinner("Updating historical prices..."):
-            result = manual_historical_update()
-            st.success(result)
-    
-    if st.sidebar.button("🧪 Test Historical Save"):
-        with st.spinner("Testing historical save..."):
-            result = test_historical_save()
-            st.info(result)
-    
-    # Thêm info về historical data
-    if st.sidebar.button("📈 Show Historical Stats"):
-        historical_data = get_historical_data(30)
-        if historical_data:
-            total_days = len(historical_data)
-            total_records = sum(len(coins) for coins in historical_data.values())
-            st.sidebar.info(f"📊 Historical Data:\n- {total_days} days\n- {total_records} price records")
-        else:
-            st.sidebar.warning("No historical data found")
+    # === FOOTER ===
+    st.markdown("---")
+    st.markdown("""
+    **💎 Tier 1 Crypto Dashboard** | Data sources: CoinGecko API, Yahoo Finance  
+    📊 Real-time tracking of top-tier cryptocurrencies | Updated every 30 seconds with auto-refresh
+    """)
 
-# Thêm vào main app để start scheduler
-
-# Start historical price scheduler (chỉ chạy 1 lần)
-if 'scheduler_started' not in st.session_state:
-    try:
-        schedule_historical_price_updates()
-        st.session_state.scheduler_started = True
-        print("✅ Historical price scheduler initialized")
-    except Exception as e:
-        print(f"❌ Failed to start scheduler: {e}")
-
+# === RUN APP ===
 if __name__ == "__main__":
     main()
