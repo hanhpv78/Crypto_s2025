@@ -47,7 +47,7 @@ except Exception as e:
 # ==================== DATA ACCESS FUNCTIONS ====================
 
 def get_portfolio():
-    """Get portfolio data with optional live prices"""
+    """Get portfolio data with timeout protection"""
     try:
         # Check if live prices requested
         use_live = False
@@ -58,16 +58,39 @@ def get_portfolio():
             pass
         
         if use_live:
+            print("🔄 Getting portfolio with live prices...")
             return get_portfolio_with_live_prices()
         
-        # Normal flow - try Google Sheets first
+        # Normal flow - try Google Sheets with timeout
         if portfolio_sheet is not None:
             try:
-                return portfolio_sheet.get_all_records()
+                print("📊 Loading portfolio from Google Sheets...")
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Google Sheets timeout")
+                
+                # Set 10 second timeout
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(10)
+                
+                try:
+                    records = portfolio_sheet.get_all_records()
+                    signal.alarm(0)  # Cancel timeout
+                    print(f"✅ Loaded {len(records)} portfolio records")
+                    return records
+                except TimeoutError:
+                    print("⏰ Google Sheets timeout, using sample data")
+                    signal.alarm(0)
+                except Exception as e:
+                    print(f"❌ Google Sheets error: {e}")
+                    signal.alarm(0)
+                    
             except Exception as e:
-                print(f"Error reading portfolio: {e}")
+                print(f"❌ Error reading portfolio: {e}")
         
         # Fallback sample data
+        print("📝 Using sample portfolio data")
         return [
             {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
             {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
@@ -75,7 +98,7 @@ def get_portfolio():
         ]
         
     except Exception as e:
-        print(f"Error in get_portfolio: {e}")
+        print(f"❌ Error in get_portfolio: {e}")
         return [
             {"Coin Name": "Bitcoin", "Coin ID": "BTC", "Quantity": 0.5, "Avg Buy Price": 45000, "Current Price": 47000, "Current Value": 23500, "P&L": 1000, "ROI %": 4.44},
             {"Coin Name": "Ethereum", "Coin ID": "ETH", "Quantity": 2, "Avg Buy Price": 3000, "Current Price": 3200, "Current Value": 6400, "P&L": 400, "ROI %": 6.67},
@@ -330,13 +353,20 @@ def get_coin_historical_prices(coin_id, days=30):
 
 def fetch_current_prices(coin_ids):
     """
-    Fetch current prices using price_fetcher_fallback module
+    Fetch current prices with timeout protection
     """
     try:
+        print(f"🔄 Fetching live prices for: {coin_ids}")
+        
         import price_fetcher_fallback
         import asyncio
         
-        # Chuyển đổi coin_ids thành CoinGecko IDs
+        # Kiểm tra function tồn tại
+        if not hasattr(price_fetcher_fallback, 'fetch_coin_prices_with_fallback'):
+            print("❌ fetch_coin_prices_with_fallback not found")
+            return get_fallback_prices(coin_ids)
+        
+        # Chuyển đổi coin_ids
         formatted_ids = []
         symbol_to_original = {}
         
@@ -344,7 +374,6 @@ def fetch_current_prices(coin_ids):
             coin_lower = str(coin_id).lower()
             original_id = coin_lower
             
-            # Convert symbols to CoinGecko IDs
             if coin_lower == "btc":
                 formatted_ids.append("bitcoin")
                 symbol_to_original["bitcoin"] = original_id
@@ -354,100 +383,131 @@ def fetch_current_prices(coin_ids):
             elif coin_lower == "ada":
                 formatted_ids.append("cardano")
                 symbol_to_original["cardano"] = original_id
-            elif coin_lower == "sol":
-                formatted_ids.append("solana")
-                symbol_to_original["solana"] = original_id
-            elif coin_lower == "dot":
-                formatted_ids.append("polkadot")
-                symbol_to_original["polkadot"] = original_id
             else:
                 formatted_ids.append(coin_lower)
                 symbol_to_original[coin_lower] = original_id
         
-        print(f"Calling fetch_coin_prices_with_fallback with: {formatted_ids}")
+        print(f"📡 Calling API for: {formatted_ids}")
         
-        # Gọi async function với event loop
+        # Event loop với timeout
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         
-        # Gọi function (KHÔNG phải class method)
-        result = loop.run_until_complete(
-            price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids)
-        )
+        # Gọi với timeout 15 seconds
+        try:
+            result = loop.run_until_complete(
+                asyncio.wait_for(
+                    price_fetcher_fallback.fetch_coin_prices_with_fallback(formatted_ids),
+                    timeout=15.0
+                )
+            )
+            print(f"✅ API result: {result}")
+        except asyncio.TimeoutError:
+            print("⏰ API timeout, using fallback prices")
+            return get_fallback_prices(coin_ids)
         
-        print(f"Raw result: {result}")
-        
-        # Chuyển đổi kết quả về format mong muốn
+        # Chuyển đổi kết quả
         final_result = {}
         for gecko_id, original_id in symbol_to_original.items():
             if gecko_id in result:
                 final_result[original_id] = result[gecko_id]
         
-        print(f"Final result: {final_result}")
-        return final_result
+        print(f"✅ Final result: {final_result}")
+        return final_result if final_result else get_fallback_prices(coin_ids)
         
     except Exception as e:
-        print(f"Error in fetch_current_prices: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Fallback với sample data
-        result = {}
-        for coin_id in coin_ids:
-            result[str(coin_id).lower()] = {
-                "current_price": 50000 if str(coin_id).lower() == "btc" else 3000,
-                "market_cap": 1000000000,
-                "price_change_24h": 2.5
-            }
-        return result
+        print(f"❌ fetch_current_prices error: {e}")
+        return get_fallback_prices(coin_ids)
+
+def get_fallback_prices(coin_ids):
+    """Fallback prices khi API fail"""
+    result = {}
+    price_map = {"btc": 67000, "eth": 3200, "ada": 0.52, "sol": 140, "dot": 7.5}
+    
+    for coin_id in coin_ids:
+        coin_lower = str(coin_id).lower()
+        result[coin_lower] = {
+            "current_price": price_map.get(coin_lower, 1.0),
+            "market_cap": 1000000000,
+            "price_change_24h": 2.5
+        }
+    
+    print(f"📝 Using fallback prices: {result}")
+    return result
 
 def get_portfolio_with_live_prices():
-    """
-    Get portfolio with live prices from APIs
-    """
+    """Get portfolio with live prices (timeout protected)"""
     try:
-        # Lấy dữ liệu portfolio base
-        portfolio_data = get_portfolio()
+        print("🔄 Loading portfolio with live prices...")
         
-        # Lấy danh sách coin IDs
-        coin_ids = [coin.get("Coin ID", "") for coin in portfolio_data if coin.get("Coin ID")]
+        # Timeout protection
+        import signal
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Live prices timeout")
         
-        if not coin_ids:
-            return portfolio_data
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(20)  # 20 second timeout
         
-        # Fetch live prices
-        live_prices = fetch_current_prices(coin_ids)
-        
-        # Update prices trong portfolio data
-        for coin in portfolio_data:
-            coin_id = coin.get("Coin ID", "").lower()
-            if coin_id in live_prices:
-                current_price = live_prices[coin_id]["current_price"]
-                coin["Current Price"] = current_price
-                
-                # Recalculate values
-                quantity = coin.get("Quantity", 0)
-                avg_buy_price = coin.get("Avg Buy Price", 0)
-                
-                if quantity and current_price:
-                    current_value = quantity * current_price
-                    coin["Current Value"] = current_value
+        try:
+            # Lấy portfolio base data
+            portfolio_data = []
+            if portfolio_sheet is not None:
+                try:
+                    portfolio_data = portfolio_sheet.get_all_records()
+                except Exception:
+                    portfolio_data = get_portfolio()  # fallback
+            else:
+                portfolio_data = get_portfolio()  # fallback
+            
+            # Lấy coin IDs
+            coin_ids = [coin.get("Coin ID", "") for coin in portfolio_data if coin.get("Coin ID")]
+            
+            if not coin_ids:
+                signal.alarm(0)
+                return portfolio_data
+            
+            print(f"📊 Portfolio coins: {coin_ids}")
+            
+            # Fetch live prices
+            live_prices = fetch_current_prices(coin_ids)
+            
+            # Update prices
+            for coin in portfolio_data:
+                coin_id = coin.get("Coin ID", "").lower()
+                if coin_id in live_prices:
+                    current_price = live_prices[coin_id]["current_price"]
+                    coin["Current Price"] = current_price
                     
-                    if avg_buy_price:
-                        total_cost = quantity * avg_buy_price
-                        pnl = current_value - total_cost
-                        roi_percent = (pnl / total_cost) * 100 if total_cost > 0 else 0
+                    # Recalculate values
+                    quantity = coin.get("Quantity", 0)
+                    avg_buy_price = coin.get("Avg Buy Price", 0)
+                    
+                    if quantity and current_price:
+                        current_value = quantity * current_price
+                        coin["Current Value"] = current_value
                         
-                        coin["P&L"] = pnl
-                        coin["ROI %"] = round(roi_percent, 2)
-        
-        return portfolio_data
-        
+                        if avg_buy_price:
+                            total_cost = quantity * avg_buy_price
+                            pnl = current_value - total_cost
+                            roi_percent = (pnl / total_cost) * 100 if total_cost > 0 else 0
+                            
+                            coin["P&L"] = pnl
+                            coin["ROI %"] = round(roi_percent, 2)
+            
+            signal.alarm(0)  # Cancel timeout
+            print(f"✅ Portfolio updated with live prices")
+            return portfolio_data
+            
+        except TimeoutError:
+            signal.alarm(0)
+            print("⏰ Live prices timeout, using static data")
+            return get_portfolio()
+            
     except Exception as e:
-        print(f"Error getting portfolio with live prices: {e}")
+        print(f"❌ get_portfolio_with_live_prices error: {e}")
         return get_portfolio()
 
 # Thêm function test trực tiếp
