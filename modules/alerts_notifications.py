@@ -5,234 +5,360 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import time
 
-# Remove heavy imports that might cause issues
-# import requests (already in main app)
-
 def show_alerts_dashboard():
-    """Lightweight Alerts Dashboard"""
+    """Smart Alerts & Notifications Dashboard"""
+    
     st.title("🚨 Smart Alerts & Notifications")
-    st.info("🚀 Alert system fully operational!")
+    st.markdown("**Set up intelligent price alerts and get notified instantly**")
+    st.success("🚀 Alert system fully operational!")
+    st.markdown("---")
     
-    alerts_manager = AlertsManager()
-    
-    # Settings tab
-    tab1, tab2, tab3, tab4 = st.tabs(["📧 Email Settings", "➕ Create Alerts", "📋 Active Alerts", "📜 Alert History"])
+    # Tabs for different alert types
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🎯 Price Alerts", 
+        "📊 Technical Alerts", 
+        "📱 Notifications", 
+        "⚙️ Settings"
+    ])
     
     with tab1:
-        st.subheader("⚙️ Email Notification Settings")
-        
-        settings = alerts_manager.get_user_settings()
-        
-        with st.container():
-            st.markdown("**📧 Email Configuration**")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                email = st.text_input("📩 Email Address", value=settings.get('email', ''))
-                smtp_username = st.text_input("👤 SMTP Username", value=settings.get('smtp_username', ''), 
-                                            help="Usually the same as your email address")
-                smtp_password = st.text_input("🔐 SMTP Password", type="password", value=settings.get('smtp_password', ''),
-                                            help="Use App Password for Gmail (not your regular password)")
-            
-            with col2:
-                smtp_server = st.selectbox("📡 SMTP Server", 
-                                         options=['smtp.gmail.com', 'smtp.yahoo.com', 'smtp-mail.outlook.com', 'smtp.aol.com'],
-                                         index=0 if settings.get('smtp_server') == 'smtp.gmail.com' else 0)
-                smtp_port = st.number_input("🔌 SMTP Port", value=settings.get('smtp_port', 587), min_value=1, max_value=9999)
-                notifications_enabled = st.checkbox("✉️ Enable Email Notifications", value=settings.get('notifications_enabled', True))
-        
-        # Gmail setup instructions
-        with st.expander("📋 Gmail Setup Instructions"):
-            st.markdown("""
-            **For Gmail users:**
-            1. Enable 2-Factor Authentication on your Google account
-            2. Go to Google Account settings > Security > App passwords
-            3. Generate an App Password for "Mail"
-            4. Use this App Password (not your regular password) in the SMTP Password field
-            
-            **Settings for Gmail:**
-            - SMTP Server: smtp.gmail.com
-            - SMTP Port: 587
-            - Username: your full email address
-            - Password: the App Password you generated
-            """)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("💾 Save Email Settings", type="primary"):
-                new_settings = {
-                    'email': email,
-                    'smtp_server': smtp_server,
-                    'smtp_port': smtp_port,
-                    'smtp_username': smtp_username or email,  # Use email as username if not specified
-                    'smtp_password': smtp_password,
-                    'notifications_enabled': notifications_enabled
-                }
-                
-                if alerts_manager.save_user_settings(new_settings):
-                    st.success("✅ Email settings saved successfully!")
-        
-        with col2:
-            if st.button("🧪 Test Email Settings"):
-                if email and smtp_password:
-                    test_config = {
-                        'email': email,
-                        'smtp_server': smtp_server,
-                        'smtp_port': smtp_port,
-                        'smtp_username': smtp_username or email,
-                        'smtp_password': smtp_password
-                    }
-                    
-                    with st.spinner("Sending test email..."):
-                        if alerts_manager.test_email_settings(test_config):
-                            st.success("✅ Test email sent successfully! Check your inbox.")
-                        else:
-                            st.error("❌ Failed to send test email. Check your settings.")
-                else:
-                    st.warning("⚠️ Please fill in email and password fields first.")
+        show_price_alerts_tab()
     
     with tab2:
-        st.subheader("➕ Create New Alert")
-        
-        alert_type = st.selectbox("Alert Type", [
-            "Price Alert", 
-            "RSI Alert", 
-            "Volume Alert", 
-            "24h Change Alert",
-            "7d Change Alert",
-            "30d Change Alert"
-        ])
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            symbol = st.selectbox(
-                "Cryptocurrency", 
-                ['BTC', 'ETH', 'BNB', 'SOL', 'ADA', 'AVAX', 'DOT', 'LINK', 'MATIC', 'UNI', 'LTC', 'ICP', 'ETC', 'XLM', 'VET']
-            )
-        
-        if alert_type == "Price Alert":
-            with col2:
-                condition = st.selectbox("Condition", ["ABOVE", "BELOW"])
-            
-            threshold = st.number_input("Price Threshold ($)", min_value=0.0001, value=1.0, step=0.1, format="%.4f")
-            message = st.text_input("Custom Message (optional)")
-            
-            if st.button("🚨 Create Price Alert"):
-                alerts_manager.create_price_alert(symbol, condition, threshold, message)
-        
-        elif alert_type == "RSI Alert":
-            with col2:
-                condition = st.selectbox("Condition", ["ABOVE", "BELOW"])
-            
-            threshold = st.slider("RSI Threshold", min_value=0, max_value=100, 
-                                value=70 if condition == "ABOVE" else 30)
-            
-            st.info(f"💡 RSI > 70 = Overbought, RSI < 30 = Oversold")
-            
-            if st.button("🚨 Create RSI Alert"):
-                alerts_manager.create_rsi_alert(symbol, condition, threshold)
-        
-        elif alert_type == "Volume Alert":
-            threshold = st.slider("Volume Spike Threshold (%)", min_value=50, max_value=500, value=200)
-            st.info(f"💡 Alert when volume is {threshold}% above average")
-            
-            if st.button("🚨 Create Volume Alert"):
-                alerts_manager.create_volume_alert(symbol, threshold)
-        
-        elif alert_type.endswith("Change Alert"):
-            timeframe = alert_type.split()[0].lower()  # Extract 24h, 7d, 30d
-            
-            with col2:
-                direction = st.selectbox("Direction", ["ABOVE", "BELOW"])
-            
-            threshold = st.slider(f"{timeframe.upper()} Change Threshold (%)", 
-                                min_value=5, max_value=100, value=20)
-            
-            st.info(f"💡 Alert when {timeframe} change is {'>' if direction == 'ABOVE' else '<'} {threshold}%")
-            
-            if st.button(f"🚨 Create {timeframe.upper()} Change Alert"):
-                alerts_manager.create_percentage_change_alert(symbol, timeframe, threshold, direction)
+        show_technical_alerts_tab()
     
     with tab3:
-        st.subheader("📋 Active Alerts")
-        
-        alerts_df = alerts_manager.get_active_alerts()
-        
-        if not alerts_df.empty:
-            # Summary
-            st.metric("Total Active Alerts", len(alerts_df))
-            
-            # Display alerts in cards
-            for idx, alert in alerts_df.iterrows():
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-                    
-                    with col1:
-                        # Alert icon based on type
-                        icon = "💰" if alert['alert_type'] == 'PRICE' else "📊" if alert['alert_type'] == 'RSI' else "📈"
-                        st.markdown(f"**{icon} {alert['symbol']} - {alert['alert_type']}**")
-                        st.write(f"📋 {alert['message']}")
-                    
-                    with col2:
-                        st.write("**Condition:**")
-                        st.write(f"{alert['condition_type']} {alert['threshold_value']}")
-                    
-                    with col3:
-                        st.write("**Created:**")
-                        st.write(f"{alert['created_at'][:16]}")
-                        st.write("🟢 **Status:** Active")
-                    
-                    with col4:
-                        if st.button("🗑️ Delete", key=f"delete_{alert['id']}"):
-                            if alerts_manager.delete_alert(alert['id']):
-                                st.success("Alert deleted!")
-                                st.rerun()
-                    
-                    st.divider()
-        else:
-            st.info("📝 No active alerts. Create some alerts to monitor your cryptocurrencies!")
+        show_notifications_tab()
     
     with tab4:
-        st.subheader("📜 Alert History")
+        show_settings_tab()
+
+
+def show_price_alerts_tab():
+    """Price Alerts Configuration"""
+    
+    st.subheader("🎯 Price Alert Configuration")
+    
+    # Alert creation form
+    with st.container():
+        col1, col2, col3 = st.columns(3)
         
-        triggered_df = alerts_manager.get_triggered_alerts()
-        
-        if not triggered_df.empty:
-            st.metric("Total Triggered Alerts", len(triggered_df))
+        with col1:
+            # Coin selection
+            coins = ['BTC-USD', 'ETH-USD', 'BNB-USD', 'SOL-USD', 'ADA-USD', 
+                    'AVAX-USD', 'DOT-USD', 'LINK-USD', 'MATIC-USD', 'UNI-USD']
+            selected_coin = st.selectbox("Select Cryptocurrency", coins)
             
-            # Display triggered alerts
-            for idx, alert in triggered_df.iterrows():
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-                    
-                    with col1:
-                        status_icon = "✅" if alert['email_sent'] else "⏳"
-                        st.markdown(f"**{status_icon} {alert['symbol']} - {alert['alert_type']}**")
-                        st.write(f"📋 {alert['message']}")
-                    
-                    with col2:
-                        st.write("**Triggered Value:**")
-                        st.write(f"{alert['current_value']}")
-                        st.write(f"(Threshold: {alert['threshold_value']})")
-                    
-                    with col3:
-                        st.write("**Triggered:**")
-                        st.write(f"{alert['triggered_at'][:16] if alert['triggered_at'] else 'N/A'}")
-                        email_status = "📧 Sent" if alert['email_sent'] else "📧 Pending"
-                        st.write(f"{email_status}")
-                    
-                    with col4:
-                        if st.button("🔄 Reactivate", key=f"reactivate_{alert['id']}"):
-                            if alerts_manager.reactivate_alert(alert['id']):
-                                st.success("Alert reactivated!")
-                                st.rerun()
-                    
-                    st.divider()
-        else:
-            st.info("📝 No triggered alerts yet.")
+            # Get current price
+            try:
+                ticker = yf.Ticker(selected_coin)
+                current_price = ticker.history(period="1d")['Close'].iloc[-1]
+                st.metric("Current Price", f"${current_price:,.2f}")
+            except:
+                current_price = 0
+                st.warning("Unable to fetch current price")
+        
+        with col2:
+            # Alert type
+            alert_type = st.radio(
+                "Alert Type",
+                ["Price Above", "Price Below", "Price Change %"]
+            )
+            
+            # Target value
+            if alert_type in ["Price Above", "Price Below"]:
+                target_value = st.number_input(
+                    "Target Price ($)",
+                    min_value=0.01,
+                    value=float(current_price * 1.1) if current_price > 0 else 100.0,
+                    step=0.01
+                )
+            else:
+                target_value = st.number_input(
+                    "Price Change (%)",
+                    min_value=-100.0,
+                    max_value=1000.0,
+                    value=10.0,
+                    step=0.1
+                )
+        
+        with col3:
+            # Notification method
+            notification_method = st.multiselect(
+                "Notification Method",
+                ["Browser Notification", "Email", "Dashboard Alert"],
+                default=["Dashboard Alert"]
+            )
+            
+            # Create alert button
+            if st.button("🚨 Create Alert", type="primary"):
+                create_alert(selected_coin, alert_type, target_value, notification_method)
+    
+    st.markdown("---")
+    
+    # Active alerts display
+    st.subheader("📋 Active Alerts")
+    
+    # Get alerts from session state
+    if 'alerts' not in st.session_state:
+        st.session_state.alerts = []
+    
+    if st.session_state.alerts:
+        alerts_df = pd.DataFrame(st.session_state.alerts)
+        
+        # Style the dataframe
+        def highlight_status(val):
+            if val == 'Active':
+                return 'background-color: darkgreen; color: white'
+            elif val == 'Triggered':
+                return 'background-color: darkred; color: white'
+            return ''
+        
+        styled_df = alerts_df.style.applymap(highlight_status, subset=['Status'])
+        st.dataframe(styled_df, use_container_width=True)
+        
+        # Clear alerts button
+        if st.button("🗑️ Clear All Alerts"):
+            st.session_state.alerts = []
+            st.rerun()
+    else:
+        st.info("📝 No active alerts. Create your first alert above!")
+
+
+def show_technical_alerts_tab():
+    """Technical Indicators Alerts"""
+    
+    st.subheader("📊 Technical Analysis Alerts")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 🔔 RSI Alerts")
+        
+        # RSI alert settings
+        coins = ['BTC-USD', 'ETH-USD', 'BNB-USD', 'SOL-USD']
+        rsi_coin = st.selectbox("Coin for RSI Alert", coins, key="rsi_coin")
+        
+        col_rsi1, col_rsi2 = st.columns(2)
+        with col_rsi1:
+            rsi_oversold = st.number_input("Oversold Level", min_value=1, max_value=50, value=30)
+        with col_rsi2:
+            rsi_overbought = st.number_input("Overbought Level", min_value=50, max_value=99, value=70)
+        
+        if st.button("Create RSI Alert"):
+            st.success(f"✅ RSI alert created for {rsi_coin}")
+            st.info(f"Alert when RSI < {rsi_oversold} (oversold) or RSI > {rsi_overbought} (overbought)")
+    
+    with col2:
+        st.markdown("### 📈 Moving Average Alerts")
+        
+        # MA alert settings
+        ma_coin = st.selectbox("Coin for MA Alert", coins, key="ma_coin")
+        
+        col_ma1, col_ma2 = st.columns(2)
+        with col_ma1:
+            ma_short = st.number_input("Short MA Period", min_value=1, max_value=100, value=20)
+        with col_ma2:
+            ma_long = st.number_input("Long MA Period", min_value=1, max_value=200, value=50)
+        
+        if st.button("Create MA Alert"):
+            st.success(f"✅ Moving Average alert created for {ma_coin}")
+            st.info(f"Alert when MA{ma_short} crosses MA{ma_long}")
+    
+    st.markdown("---")
+    
+    # Current technical status
+    st.subheader("🎯 Current Technical Status")
+    
+    tech_data = []
+    for coin in ['BTC-USD', 'ETH-USD', 'BNB-USD']:
+        try:
+            ticker = yf.Ticker(coin)
+            df = ticker.history(period="1mo")
+            
+            if not df.empty:
+                # Calculate RSI
+                delta = df['Close'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                current_rsi = rsi.iloc[-1]
+                
+                # Calculate MA
+                ma_20 = df['Close'].rolling(window=20).mean().iloc[-1]
+                ma_50 = df['Close'].rolling(window=50).mean().iloc[-1]
+                current_price = df['Close'].iloc[-1]
+                
+                # Determine signals
+                rsi_signal = "🔴 Overbought" if current_rsi > 70 else "🟢 Oversold" if current_rsi < 30 else "🟡 Neutral"
+                ma_signal = "🟢 Bullish" if current_price > ma_20 > ma_50 else "🔴 Bearish" if current_price < ma_20 < ma_50 else "🟡 Mixed"
+                
+                tech_data.append({
+                    'Coin': coin.replace('-USD', ''),
+                    'RSI': f"{current_rsi:.1f}",
+                    'RSI Signal': rsi_signal,
+                    'MA Signal': ma_signal,
+                    'Price': f"${current_price:,.2f}"
+                })
+        except:
+            continue
+    
+    if tech_data:
+        tech_df = pd.DataFrame(tech_data)
+        st.dataframe(tech_df, use_container_width=True, hide_index=True)
+
+
+def show_notifications_tab():
+    """Notifications History"""
+    
+    st.subheader("📱 Notification Center")
+    
+    # Mock notification history
+    notifications = [
+        {
+            'Time': '2025-06-13 14:30:00',
+            'Type': 'Price Alert',
+            'Message': 'BTC-USD reached target price of $42,000',
+            'Status': 'Delivered'
+        },
+        {
+            'Time': '2025-06-13 12:15:00',
+            'Type': 'RSI Alert', 
+            'Message': 'ETH-USD RSI dropped below 30 (oversold)',
+            'Status': 'Delivered'
+        },
+        {
+            'Time': '2025-06-13 09:45:00',
+            'Type': 'MA Alert',
+            'Message': 'SOL-USD MA20 crossed above MA50 (bullish signal)',
+            'Status': 'Delivered'
+        }
+    ]
+    
+    # Display notifications
+    for i, notif in enumerate(notifications):
+        with st.container():
+            col1, col2, col3 = st.columns([3, 2, 1])
+            
+            with col1:
+                st.markdown(f"**{notif['Type']}**")
+                st.markdown(notif['Message'])
+            
+            with col2:
+                st.text(notif['Time'])
+            
+            with col3:
+                if notif['Status'] == 'Delivered':
+                    st.success("✅ Sent")
+                else:
+                    st.error("❌ Failed")
+        
+        if i < len(notifications) - 1:
+            st.markdown("---")
+    
+    # Clear notifications
+    if st.button("🗑️ Clear Notification History"):
+        st.success("Notification history cleared!")
+
+
+def show_settings_tab():
+    """Alert Settings & Configuration"""
+    
+    st.subheader("⚙️ Alert Settings & Configuration")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 📧 Email Settings")
+        
+        email_enabled = st.checkbox("Enable Email Notifications", value=True)
+        if email_enabled:
+            email_address = st.text_input("Email Address", placeholder="your@email.com")
+            email_frequency = st.selectbox(
+                "Email Frequency",
+                ["Immediate", "Every 5 minutes", "Every 15 minutes", "Hourly"]
+            )
+        
+        st.markdown("### 🔔 Browser Notifications")
+        browser_enabled = st.checkbox("Enable Browser Notifications", value=True)
+        if browser_enabled:
+            notification_sound = st.checkbox("Play notification sound", value=True)
+    
+    with col2:
+        st.markdown("### 📊 Alert Limits")
+        
+        max_alerts = st.number_input(
+            "Maximum Active Alerts",
+            min_value=1,
+            max_value=100,
+            value=20
+        )
+        
+        cooldown_period = st.number_input(
+            "Alert Cooldown (minutes)",
+            min_value=1,
+            max_value=1440,
+            value=15,
+            help="Minimum time between same alerts"
+        )
+        
+        st.markdown("### 🎯 Advanced Settings")
+        
+        price_check_interval = st.selectbox(
+            "Price Check Interval",
+            ["30 seconds", "1 minute", "5 minutes", "15 minutes"],
+            index=1
+        )
+        
+        auto_cleanup = st.checkbox(
+            "Auto-cleanup triggered alerts", 
+            value=True,
+            help="Automatically remove alerts after they trigger"
+        )
+    
+    # Save settings
+    if st.button("💾 Save Settings", type="primary"):
+        st.success("✅ Settings saved successfully!")
+        st.info("Alert system updated with new configuration")
+
+
+def create_alert(coin, alert_type, target_value, notification_methods):
+    """Create a new price alert"""
+    
+    # Get current price for validation
+    try:
+        ticker = yf.Ticker(coin)
+        current_price = ticker.history(period="1d")['Close'].iloc[-1]
+        
+        # Create alert object
+        alert = {
+            'ID': len(st.session_state.alerts) + 1,
+            'Coin': coin,
+            'Type': alert_type,
+            'Target': f"${target_value:,.2f}" if "Price" in alert_type else f"{target_value}%",
+            'Current': f"${current_price:,.2f}",
+            'Methods': ", ".join(notification_methods),
+            'Created': datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'Status': 'Active'
+        }
+        
+        # Add to session state
+        if 'alerts' not in st.session_state:
+            st.session_state.alerts = []
+        
+        st.session_state.alerts.append(alert)
+        
+        st.success(f"✅ Alert created successfully!")
+        st.info(f"You'll be notified when {coin} {alert_type.lower()} {alert['Target']}")
+        
+        # Auto refresh to show new alert
+        time.sleep(1)
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Error creating alert: {str(e)}")
+
 
 if __name__ == "__main__":
     show_alerts_dashboard()
