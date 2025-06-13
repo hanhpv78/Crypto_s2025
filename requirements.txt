@@ -24,3 +24,13 @@ scikit-learn>=1.3.0
 scipy>=1.10.0
 ta>=0.10.2
 mplfinance>=0.12.9b0
+# MINIMAL VERSION FOR STREAMLIT CLOUD
+streamlit
+pandas
+numpy
+plotly
+yfinance
+requests
+aiohttp
+ta
+matplotlib
