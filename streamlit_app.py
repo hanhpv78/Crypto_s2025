@@ -262,7 +262,7 @@ def get_historical_prices_top10(symbols_list, period="1y"):
 # === NAVIGATION FUNCTION (THÊM MỚI) ===
 def show_navigation():
     """Enhanced navigation with Step 2 modules"""
-    st.sidebar.title("🚀 Navigation")
+    st.sidebar.title("🚀 Crypto Investment Platform")
     
     # Build module list
     modules = ["📊 Crypto Dashboard (Step 1)"]
@@ -283,13 +283,17 @@ def show_navigation():
     # Module status
     available_count = sum(step2_modules.values())
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📋 Module Status")
+    st.sidebar.markdown("### 📋 Platform Status")
     st.sidebar.success(f"✅ Step 1: Crypto Dashboard")
-    st.sidebar.info(f"🚀 Step 2: {available_count}/5 modules available")
+    
+    if available_count == 5:
+        st.sidebar.success(f"🚀 Step 2: {available_count}/5 modules ready")
+    else:
+        st.sidebar.info(f"⏳ Step 2: {available_count}/5 modules loading...")
     
     if available_count < 5:
         missing_modules = [k for k, v in step2_modules.items() if not v]
-        st.sidebar.warning(f"⏳ Uploading: {', '.join(missing_modules)}")
+        st.sidebar.warning(f"📦 Loading: {', '.join(missing_modules)}")
     
     return selected_module
 
@@ -321,7 +325,7 @@ def main():
     
     else:
         st.error("❌ Module not available yet")
-        st.info("💡 This module is being uploaded. Please check back soon!")
+        st.info("💡 This module is being deployed. Please refresh in a moment!")
 
 # === YOUR EXISTING MAIN FUNCTION (RENAMED) ===
 def show_crypto_dashboard():
