@@ -602,6 +602,27 @@ def show_crypto_dashboard():
     📊 Real-time tracking of top-tier cryptocurrencies | Updated every 30 seconds with auto-refresh
     """)
 
+# Force reload modules
+import importlib
+import sys
+
+def force_reload_modules():
+    """Force reload all Step 2 modules"""
+    modules_to_reload = [
+        'modules.technical_indicators',
+        'modules.alerts_notifications', 
+        'modules.backtest_strategy'
+    ]
+    
+    for module_name in modules_to_reload:
+        if module_name in sys.modules:
+            importlib.reload(sys.modules[module_name])
+
+# Import Step 2 modules with force reload
+if st.sidebar.button("🔄 Force Reload Modules"):
+    force_reload_modules()
+    st.rerun()
+
 # === RUN APP ===
 if __name__ == "__main__":
     main()
