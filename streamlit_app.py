@@ -13,13 +13,51 @@ from typing import Dict, List, Optional
 import time
 import numpy as np
 
+# Add modules directory to path
+current_dir = os.path.dirname(__file__)
+modules_dir = os.path.join(current_dir, 'modules')
+if modules_dir not in sys.path:
+    sys.path.append(modules_dir)
+
 # Set page config FIRST
 st.set_page_config(
-    page_title="Tier 1 Crypto Portfolio Dashboard", 
-    page_icon="💎",
+    page_title="Crypto Investment Platform", 
+    page_icon="₿",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Import Step 2 modules with error handling
+step2_modules = {}
+try:
+    from modules.technical_indicators import show_technical_dashboard
+    step2_modules['technical'] = True
+except ImportError:
+    step2_modules['technical'] = False
+
+try:
+    from modules.alerts_notifications import show_alerts_dashboard
+    step2_modules['alerts'] = True
+except ImportError:
+    step2_modules['alerts'] = False
+
+try:
+    from modules.portfolio_tracker import show_portfolio_dashboard
+    step2_modules['portfolio'] = True
+except ImportError:
+    step2_modules['portfolio'] = False
+
+try:
+    from modules.backtest_strategy import show_backtest_dashboard
+    step2_modules['backtest'] = True
+except ImportError:
+    step2_modules['backtest'] = False
+
+try:
+    from modules.sentiment_analysis import show_sentiment_dashboard
+    step2_modules['sentiment'] = True
+except ImportError:
+    step2_modules['sentiment'] = False
 
 # === PRICE FETCHER CLASS ===
 class TierOnePriceFetcher:
@@ -221,8 +259,74 @@ def get_historical_prices_top10(symbols_list, period="1y"):
     
     return historical_data
 
-# === MAIN APP ===
+# === NAVIGATION FUNCTION (THÊM MỚI) ===
+def show_navigation():
+    """Enhanced navigation with Step 2 modules"""
+    st.sidebar.title("🚀 Navigation")
+    
+    # Build module list
+    modules = ["📊 Crypto Dashboard (Step 1)"]
+    
+    if step2_modules['technical']:
+        modules.append("📈 Technical Indicators")
+    if step2_modules['alerts']:
+        modules.append("🚨 Alerts & Notifications")
+    if step2_modules['portfolio']:
+        modules.append("💼 Portfolio Tracker")
+    if step2_modules['backtest']:
+        modules.append("🔬 Strategy Backtesting")
+    if step2_modules['sentiment']:
+        modules.append("🧠 Sentiment Analysis")
+    
+    selected_module = st.sidebar.selectbox("Choose Module", modules)
+    
+    # Module status
+    available_count = sum(step2_modules.values())
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📋 Module Status")
+    st.sidebar.success(f"✅ Step 1: Crypto Dashboard")
+    st.sidebar.info(f"🚀 Step 2: {available_count}/5 modules available")
+    
+    if available_count < 5:
+        missing_modules = [k for k, v in step2_modules.items() if not v]
+        st.sidebar.warning(f"⏳ Uploading: {', '.join(missing_modules)}")
+    
+    return selected_module
+
+# === MODIFIED MAIN FUNCTION ===
 def main():
+    """Main function with Step 1 + Step 2 integration"""
+    
+    # Navigation
+    selected_module = show_navigation()
+    
+    # Route to appropriate module
+    if selected_module == "📊 Crypto Dashboard (Step 1)":
+        show_crypto_dashboard()  # Your existing main function renamed
+        
+    elif selected_module == "📈 Technical Indicators" and step2_modules['technical']:
+        show_technical_dashboard()
+        
+    elif selected_module == "🚨 Alerts & Notifications" and step2_modules['alerts']:
+        show_alerts_dashboard()
+        
+    elif selected_module == "💼 Portfolio Tracker" and step2_modules['portfolio']:
+        show_portfolio_dashboard()
+        
+    elif selected_module == "🔬 Strategy Backtesting" and step2_modules['backtest']:
+        show_backtest_dashboard()
+        
+    elif selected_module == "🧠 Sentiment Analysis" and step2_modules['sentiment']:
+        show_sentiment_dashboard()
+    
+    else:
+        st.error("❌ Module not available yet")
+        st.info("💡 This module is being uploaded. Please check back soon!")
+
+# === YOUR EXISTING MAIN FUNCTION (RENAMED) ===
+def show_crypto_dashboard():
+    """Your existing main dashboard (Step 1)"""
+    
     st.title("💎 Tier 1 Crypto Portfolio Dashboard")
     st.markdown("**Real-time Tier 1 Cryptocurrency Universe Tracker**")
     st.markdown("---")
