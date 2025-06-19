@@ -1,0 +1,30 @@
+Mỗi lần sửa code, chỉ cần
+git add <file>
+git commit -m "Mô tả thay đổi"
+git push
+
+Kéo code mới nhất về:
+git pull origin main --allow-unrelated-histories
+
+Nếu có xung đột, sửa xung đột trong file (giống như vừa làm), rồi:
+
+git add modules/indicators_engine.py
+git commit -m "Resolve conflict"
+
+Push lại lên GitHub:
+
+git push
+
+Run in local:
+python -m streamlit run streamlit_indicators_demo.py
+
+
+1. Kiểm tra trạng thái hiện tại:
+git status
+
+2. Commit thay đổi:
+git commit -m "Update gcp_credentials.json with gsheet_url"
+3. Push lên GitHub:
+
+Quy trình Git đúng:
+git push origin main
