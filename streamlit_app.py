@@ -367,9 +367,9 @@ def show_crypto_dashboard():
     """Main dashboard function"""
 
     # Check if imports successful
-    if not DATA_ACCESS_IMPORTED:
-        st.error("❌ Data access functions not available")
-        st.stop()
+    #if not DATA_ACCESS_IMPORTED:
+    #    st.error("❌ Data access functions not available")
+    #    st.stop()
     
     # Initialize variables
     universe_df = pd.DataFrame()
