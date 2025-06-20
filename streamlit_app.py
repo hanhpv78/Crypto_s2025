@@ -351,7 +351,39 @@ def main():
 
 # === YOUR EXISTING MAIN FUNCTION (RENAMED) ===
 def show_crypto_dashboard():
+    universe_df = pd.DataFrame()
+    
+    # Load data từ Tier1_Real_Time sheet
+    try:
+        spreadsheet_url = st.secrets.get("gsheet_url", "")
+        if spreadsheet_url:
+            from data_access import get_tier1_realtime_data
+            universe_df = get_tier1_realtime_data(spreadsheet_url)
+            
+            if not universe_df.empty:
+                # Lưu vào session state để button có thể access
+                st.session_state.universe_df = universe_df
+                st.session_state.spreadsheet_url = spreadsheet_url
+                
+                # Debug: show column names
+                st.write("**Debug - Column names:**", list(universe_df.columns))
+                st.write("**Debug - DataFrame shape:**", universe_df.shape)
+                st.write("**Debug - First row:**", universe_df.iloc[0].to_dict() if len(universe_df) > 0 else "No data")
+                
+                st.info(f"📊 Loaded {len(universe_df)} coins from Tier1_Real_Time")
+                # Hiển thị preview data
+                with st.expander("📋 Preview Tier1 Data"):
+                    st.dataframe(universe_df.head())
+    except Exception as e:
+        st.error(f"❌ Error loading Tier1 data: {e}")
+    
+    # Sửa line export:
+    data_to_export = []
+    #st.info("📊 Google Sheets temporarily disabled for debugging")
+
+    
     """Your existing main dashboard (Step 1)"""
+
     
     st.title("💎 Tier 1 Crypto Portfolio Dashboard")
     st.markdown("**Real-time Tier 1 Cryptocurrency Universe Tracker**")
