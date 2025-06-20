@@ -1,223 +1,224 @@
-import aiohttp
-import asyncio
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as gotional
+import plotly.express as px
+from datetime import datetime  # ← Fix nàycác API khác
+import timeO_SYMBOL = {
+import asyncio "BTC",
+import aiohttp: "ETH", 
 from typing import Dict, List, Optional
-
-# Mapping từ CoinGecko ID sang symbol cho các API khác
-COINGECKO_TO_SYMBOL = {
-    "bitcoin": "BTC",
-    "ethereum": "ETH", 
-    "ripple": "XRP",
     "bitcoin-cash": "BCH",
-    "litecoin": "LTC",
-    "cardano": "ADA",
-    "polkadot": "DOT",
-    "chainlink": "LINK",
-    "binancecoin": "BNB",
-    "stellar": "XLM",
-    "dogecoin": "DOGE",
+from data_access import get_google_sheets_client, get_universe_data
+import yfinance as yf
+import requests "DOT",
+import numpy as npLINK",
+from data_access import export_tier1_to_existing_gsheet, load_tier1_universe_from_gsheet
+import jsonr": "XLM",
+from price_fetcher_fallback import fetch_current_prices
     "tether": "USDT",
-    "usd-coin": "USDC",
-    "shiba-inu": "SHIB",
-    "polygon": "MATIC",
-    "solana": "SOL",
-    "avalanche-2": "AVAX",
+# Add modules directory to path
+current_dir = os.path.dirname(__file__)
+modules_dir = os.path.join(current_dir, 'modules')
+if modules_dir not in sys.path:
+    sys.path.append(modules_dir)
     "celestia": "TIA",
-    "arbitrum": "ARB",
-    "render-token": "RNDR",
-    "ondo-finance": "ONDO",
-    "mantra-dao": "OM",
-    "pixels": "PIXEL",
-    "jupiter": "JUP",
-    "pendle": "PENDLE",
+# Set page config FIRST
+st.set_page_config( "RNDR",
+    page_title="Crypto Investment Platform", 
+    page_icon="₿","OM",
+    layout="wide",EL",
+    initial_sidebar_state="expanded"
+)   "pendle": "PENDLE",
     "ace-casino": "ACE"
-}
-
-async def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
-    """Lấy giá từ CoinGecko với rate limit handling"""
-    try:
-        # Thêm delay để tránh rate limit
-        await asyncio.sleep(1.0)
+# Import Step 2 modules with error handling
+step2_modules = {}
+try:c def fetch_from_coingecko(coin_ids: List[str]) -> Dict[str, Dict]:
+    from modules.technical_indicators import show_technical_dashboard
+    step2_modules['technical'] = True
+except ImportError:y để tránh rate limit
+    step2_modules['technical'] = False
         
-        ids_str = ",".join(coin_ids)
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
-        
-        # Headers để tránh rate limit
-        headers = {
+try:    ids_str = ",".join(coin_ids)
+    from modules.alerts_notifications import show_alerts_dashboard{ids_str}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
+    step2_modules['alerts'] = True
+except ImportError:ể tránh rate limit
+    step2_modules['alerts'] = False
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json'
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=20)  # Tăng timeout
-        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+try:        'Accept': 'application/json'
+    from modules.portfolio_tracker import show_portfolio_dashboard
+    step2_modules['portfolio'] = True
+except ImportError:iohttp.ClientTimeout(total=20)  # Tăng timeout
+    step2_modules['portfolio'] = Falseon(timeout=timeout, headers=headers) as session:
             async with session.get(url) as response:
-                print(f"CoinGecko response status: {response.status}")
-                
-                if response.status == 200:
-                    data = await response.json()
-                    result = {}
+try:            print(f"CoinGecko response status: {response.status}")
+    from modules.backtest_strategy import show_backtest_dashboard
+    step2_modules['backtest'] = True= 200:
+except ImportError: data = await response.json()
+    step2_modules['backtest'] = False
                     for coin_id in coin_ids:
-                        if coin_id in data:
-                            result[coin_id] = {
-                                "current_price": data[coin_id]["usd"],
-                                "market_cap": data[coin_id].get("usd_market_cap", 0),
-                                "price_change_24h": data[coin_id].get("usd_24h_change", 0)
+try:                    if coin_id in data:
+    from modules.sentiment_analysis import show_sentiment_dashboard
+    step2_modules['sentiment'] = Trueent_price": data[coin_id]["usd"],
+except ImportError:             "market_cap": data[coin_id].get("usd_market_cap", 0),
+    step2_modules['sentiment'] = False_change_24h": data[coin_id].get("usd_24h_change", 0)
                             }
-                    print(f"✅ CoinGecko fetched {len(result)} coins")
-                    return result
-                elif response.status == 429:
-                    print("⚠️ CoinGecko rate limit, fallback to Binance")
-                    return {}
+try:                print(f"✅ CoinGecko fetched {len(result)} coins")
+    from modules.indicators_engine import show_indicators_engine_dashboard
+    step2_modules['indicators_engine'] = True
+except ImportError: print("⚠️ CoinGecko rate limit, fallback to Binance")
+    step2_modules['indicators_engine'] = False
                 else:
                     print(f"❌ CoinGecko error: {response.status}")
-                    return {}
+def get_spreadsheet_url(): {}
+    """Get spreadsheet URL from secrets"""
+    try:print(f"❌ CoinGecko exception: {e}")
+        return st.secrets["gsheet_url"]
     except Exception as e:
-        print(f"❌ CoinGecko exception: {e}")
-    return {}
-
-async def fetch_from_binance(coin_ids: List[str]) -> Dict[str, Dict]:
-    """Lấy giá từ Binance cho fallback"""
+        st.error(f"❌ Cannot get gsheet_url: {e}") -> Dict[str, Dict]:
+        return "" Binance cho fallback"""
     try:
-        await asyncio.sleep(0.5)  # Rate limit protection
-        
-        url = "https://api.binance.com/api/v3/ticker/24hr"
-        timeout = aiohttp.ClientTimeout(total=15)
-        
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as response:
-                if response.status == 200:
+spreadsheet_url = get_spreadsheet_url()e limit protection
+# === PRICE FETCHER CLASS ===
+class TierOnePriceFetcher:.binance.com/api/v3/ticker/24hr"
+    def __init__(self):tp.ClientTimeout(total=15)
+        self.session = requests.Session()
+        self.session.headers.update({ion(timeout=timeout) as session:
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })      if response.status == 200:
                     data = await response.json()
-                    result = {}
-                    
-                    # Tạo mapping từ CoinGecko ID sang Binance symbols
-                    for coin_id in coin_ids:
-                        symbol = COINGECKO_TO_SYMBOL.get(coin_id, "").upper()
-                        if symbol:
-                            # Tìm symbol trong Binance data
-                            for item in data:
-                                if item.get("symbol") == f"{symbol}USDT":
-                                    result[coin_id] = {
-                                        "current_price": float(item["lastPrice"]),
-                                        "market_cap": 0,  # Binance không có market cap
-                                        "price_change_24h": float(item["priceChangePercent"])
-                                    }
-                                    break
-                    
-                    print(f"✅ Binance fetched {len(result)} coins")
-                    return result
-                else:
-                    print(f"❌ Binance error: {response.status}")
-    except Exception as e:
-        print(f"❌ Binance exception: {e}")
-    return {}
-
-async def fetch_coin_prices_with_fallback(coin_ids: List[str]) -> Dict[str, Dict]:
-    """
-    Lấy giá từ nhiều nguồn với fallback
-    1. CoinGecko (nguồn chính)
-    2. Binance (fallback) 
-    """
-    print(f"Fetching prices for {len(coin_ids)} coins with fallback...")
+        # Top tier 1 coins = {}
+        self.tier1_coins = {
+            'bitcoin': {'symbol': 'BTC', 'name': 'Bitcoin'},ce symbols
+            'ethereum': {'symbol': 'ETH', 'name': 'Ethereum'},
+            'binancecoin': {'symbol': 'BNB', 'name': 'BNB'},n_id, "").upper()
+            'solana': {'symbol': 'SOL', 'name': 'Solana'},
+            'cardano': {'symbol': 'ADA', 'name': 'Cardano'},
+            'avalanche-2': {'symbol': 'AVAX', 'name': 'Avalanche'},
+            'polkadot': {'symbol': 'DOT', 'name': 'Polkadot'},mbol}USDT":
+            'chainlink': {'symbol': 'LINK', 'name': 'Chainlink'},
+            'polygon': {'symbol': 'MATIC', 'name': 'Polygon'},(item["lastPrice"]),
+            'uniswap': {'symbol': 'UNI', 'name': 'Uniswap'},Binance không có market cap
+            'litecoin': {'symbol': 'LTC', 'name': 'Litecoin'},oat(item["priceChangePercent"])
+            'internet-computer': {'symbol': 'ICP', 'name': 'Internet Computer'},
+            'ethereum-classic': {'symbol': 'ETC', 'name': 'Ethereum Classic'},
+            'stellar': {'symbol': 'XLM', 'name': 'Stellar'},
+            'vechain': {'symbol': 'VET', 'name': 'VeChain'},coins")
+            'filecoin': {'symbol': 'FIL', 'name': 'Filecoin'},
+            'tron': {'symbol': 'TRX', 'name': 'TRON'},
+            'algorand': {'symbol': 'ALGO', 'name': 'Algorand'},)
+            'cosmos': {'symbol': 'ATOM', 'name': 'Cosmos'},
+            'near': {'symbol': 'NEAR', 'name': 'NEAR Protocol'}
+        }n {}
     
-    # Bước 1: Thử CoinGecko trước
-    coingecko_prices = await fetch_from_coingecko(coin_ids)
-    
-    # Tìm các coin chưa có giá
-    missing_coins = [coin_id for coin_id in coin_ids if coin_id not in coingecko_prices]
-    
-    if not missing_coins:
-        print("All prices fetched from CoinGecko")
-        return coingecko_prices
-    
-    print(f"Missing {len(missing_coins)} coins from CoinGecko, trying Binance...")
-    
-    # Chuyển đổi missing coins sang symbols
-    missing_symbols = []
-    coin_to_symbol_map = {}
-    for coin_id in missing_coins:
-        if coin_id in COINGECKO_TO_SYMBOL:
-            symbol = COINGECKO_TO_SYMBOL[coin_id]
-            missing_symbols.append(symbol)
-            coin_to_symbol_map[symbol] = coin_id
-    
-    # Bước 2: Thử Binance
-    binance_prices = await fetch_from_binance(missing_symbols)
-    
-    # Kết hợp kết quả
-    final_result = coingecko_prices.copy()
-    
-    # Thêm giá từ Binance
-    for symbol, price_data in binance_prices.items():
-        if symbol in coin_to_symbol_map:
-            coin_id = coin_to_symbol_map[symbol]
-            final_result[coin_id] = price_data
-    
-    print(f"Final result: {len(final_result)} coins with prices")
-    print(f"Sources used: CoinGecko({len(coingecko_prices)}), Binance({len(binance_prices)})")
-    
-    return final_result
-
-def get_potential_coins_with_live_prices():
-    """Get potential coins with live prices"""
-    try:
-        potential_data = get_potential_coins()
-        
-        if not potential_data:
-            return []
-        
-        # Lấy coin IDs từ potential coins
-        coin_ids = [coin.get("Coin ID", "") for coin in potential_data if coin.get("Coin ID")]
-        
-        if coin_ids:
-            # Fetch live prices
-            live_prices = fetch_current_prices(coin_ids)
+    def create_tier1_universe(self) -> pd.DataFrame:List[str]) -> Dict[str, Dict]:
+        """Fetch real-time Tier 1 universe from CoinGecko"""
+        try:từ nhiều nguồn với fallback
+            # Fetch top 200 coins
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {
+                'vs_currency': 'usd',coin_ids)} coins with fallback...")
+                'order': 'market_cap_desc',
+                'per_page': 200,c
+                'page': 1,it fetch_from_coingecko(coin_ids)
+                'sparkline': False,
+                'price_change_percentage': '1h,24h,7d,30d'
+            }oins = [coin_id for coin_id in coin_ids if coin_id not in coingecko_prices]
             
-            # Update prices
-            for coin in potential_data:
-                coin_id = coin.get("Coin ID", "").lower()
-                if coin_id in live_prices:
-                    price_data = live_prices[coin_id]
-                    coin["Current Price"] = price_data.get("current_price", 0)
+            response = self.session.get(url, params=params, timeout=30)
+            t("All prices fetched from CoinGecko")
+            if response.status_code == 200:
+                data = response.json()
+                ing {len(missing_coins)} coins from CoinGecko, trying Binance...")
+                # Filter only tier 1 coins
+                tier1_data = []sang symbols
+                for coin in data:
+                    if coin['id'] in self.tier1_coins or coin['market_cap_rank'] <= 50:
+                        symbol = coin['symbol'].upper()
+                        INGECKO_TO_SYMBOL:
+                        tier1_data.append({in_id]
+                            'symbol': symbol,
+                            'name': coin['name'],
+                            'price': coin['current_price'] or 0,
+                            'market_cap': coin['market_cap'] or 0,
+                            'change_1h': coin.get('price_change_percentage_1h_in_currency', 0) or 0,
+                            'change_24h': coin.get('price_change_percentage_24h', 0) or 0,
+                            'change_7d': coin.get('price_change_percentage_7d_in_currency', 0) or 0,
+                            'change_30d': coin.get('price_change_percentage_30d_in_currency', 0) or 0,
+                            'volume_24h': coin['total_volume'] or 0,
+                            'rank': coin['market_cap_rank'] or 999,
+                            'source': 'CoinGecko',():
+                            'last_updated': datetime.now().isoformat(),
+                            'coin_id': coin['id']
+                        })oin_id] = price_data
+                
+                df = pd.DataFrame(tier1_data) coins with prices")
+                df = df.sort_values('rank').reset_index(drop=True)nce({len(binance_prices)})")
+                
+                st.success(f"✅ Fetched {len(df)} Tier 1 coins from CoinGecko")
+                return df
+            ntial_coins_with_live_prices():
+            else:ial coins with live prices"""
+                st.warning(f"⚠️ CoinGecko API returned {response.status_code}")
+                return self._get_fallback_data()
+                
+        except Exception as e:
+            st.error(f"❌ Error fetching data: {str(e)}")
+            return self._get_fallback_data()
+        # Lấy coin IDs từ potential coins
+    def _get_fallback_data(self) -> pd.DataFrame:oin in potential_data if coin.get("Coin ID")]
+        """Fallback demo data"""
+        fallback_data = []
+            # Fetch live prices
+        for i, (coin_id, info) in enumerate(self.tier1_coins.items()):
+            # Generate realistic demo prices
+            base_prices = {
+                'BTC': 67000, 'ETH': 3500, 'BNB': 600, 'SOL': 160, 'ADA': 0.52,
+                'AVAX': 35, 'DOT': 6.8, 'LINK': 15.2, 'MATIC': 0.95, 'UNI': 12.5,
+                'LTC': 180, 'ICP': 12.8, 'ETC': 32.5, 'XLM': 0.12, 'VET': 0.045,
+                'FIL': 8.2, 'TRX': 0.11, 'ALGO': 0.28, 'ATOM': 11.5, 'NEAR': 3.8
+            }       coin["Current Price"] = price_data.get("current_price", 0)
                     coin["Market Cap"] = price_data.get("market_cap", 0)
-                    coin["Price Change 24h"] = price_data.get("price_change_24h", 0)
-        
-        return potential_data
-        
-    except Exception as e:
-        print(f"Error getting potential coins with live prices: {e}")
-        return get_potential_coins()
-
-def fetch_current_prices(coin_ids):
-    """
-    Wrapper function for compatibility with data_access.py
-    """
-    import asyncio
-    
-    try:
-        # Event loop
-        try:
-            loop = asyncio.get_event_loop()
+            symbol = info['symbol']nge 24h"] = price_data.get("price_change_24h", 0)
+            price = base_prices.get(symbol, 1.0)
+            rn potential_data
+            fallback_data.append({
+                'symbol': symbol,
+                'name': info['name'],al coins with live prices: {e}")
+                'price': price,ins()
+                'market_cap': price * 1000000000 * (50 - i),  # Decreasing market cap
+                'change_1h': np.random.uniform(-2, 2),
+                'change_24h': np.random.uniform(-10, 10),
+                'change_7d': np.random.uniform(-20, 20),py
+                'change_30d': np.random.uniform(-40, 40),
+                'volume_24h': price * 1000000 * (100 - i),
+                'rank': i + 1,
+                'source': 'Demo',
+                'last_updated': datetime.now().isoformat(),
+                'coin_id': coin_id
+            })op = asyncio.get_event_loop()
         except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
+        df = pd.DataFrame(fallback_data)p()
+        st.warning(f"⚠️ Using demo data ({len(df)} coins)")
+        return df
         # Gọi async function chính
-        result = loop.run_until_complete(
-            fetch_coin_prices_with_fallback(coin_ids)
-        )
+    def detect_universe_changes(self, current_df: pd.DataFrame, previous_symbols: set) -> Dict:
+        """Detect changes in universe"""ack(coin_ids)
+        current_symbols = set(current_df['symbol'].tolist())
         
-        return result
-        
-    except Exception as e:
-        print(f"Error in fetch_current_prices: {e}")
-        # Fallback prices
-        fallback = {}
-        price_map = {"bitcoin": 67000, "ethereum": 3200, "cardano": 0.52, "solana": 140}
-        
-        for coin_id in coin_ids:
+        new_coins = current_symbols - previous_symbols
+        removed_coins = previous_symbols - current_symbols
+        pt Exception as e:
+        return {Error in fetch_current_prices: {e}")
+            'new_coins': list(new_coins),
+            'removed_coins': list(removed_coins),
+            'total_current': len(current_symbols), 3200, "cardano": 0.52, "solana": 140}
+            'total_previous': len(previous_symbols)
+        }or coin_id in coin_ids:
             fallback[coin_id] = {
-                "current_price": price_map.get(coin_id, 1.0),
-                "market_cap": 1000000000,
-                "price_change_24h": 2.5
-            }
+    def detect_significant_movements(self, df: pd.DataFrame, threshold: float = 20.0) -> pd.DataFrame:
+        """Detect significant movements"""
+        if df.empty:ce_change_24h": 2.5
+            return pd.DataFrame()
         
-        return fallback
+        significant_moves = df[
+            (abs(df['change_30d']) >= threshold) &             (df['change_30d'] != 0)        ].copy()                if not significant_moves.empty:            significant_moves = significant_moves.sort_values('change_30d', key=abs, ascending=False)            significant_moves['movement_type'] = significant_moves['change_30d'].apply(                lambda x: '🚀 PUMP' if x > 0 else '📉 DUMP'            )                return significant_moves# === HISTORICAL DATA FUNCTIONS ===@st.cache_data(ttl=600)def get_historical_prices_top10(symbols_list, period="1y"):    """Get historical prices for top 10 coins"""    historical_data = {}        progress_bar = st.progress(0)    status_text = st.empty()        for i, symbol in enumerate(symbols_list[:10]):  # Limit to 10        try:            status_text.text(f"Loading {symbol} historical data... ({i+1}/{min(len(symbols_list), 10)})")                        # Create ticker symbol for yfinance            ticker_map = {                'BTC': 'BTC-USD', 'ETH': 'ETH-USD', 'BNB': 'BNB-USD',                'SOL': 'SOL-USD', 'ADA': 'ADA-USD', 'AVAX': 'AVAX-USD',                'DOT': 'DOT-USD', 'LINK': 'LINK-USD', 'MATIC': 'MATIC-USD',                'UNI': 'UNI-USD', 'LTC': 'LTC-USD'            }                        ticker = ticker_map.get(symbol, f'{symbol}-USD')                        # Get data from yfinance            stock = yf.Ticker(ticker)            hist = stock.history(period=period)                        if not hist.empty:                historical_data[symbol] = {                    'dates': hist.index.tolist(),                    'prices': hist['Close'].tolist(),                    'symbol': symbol                }                        progress_bar.progress((i + 1) / min(len(symbols_list), 10))                    except Exception as e:            st.warning(f"⚠️ Cannot get data for {symbol}: {str(e)}")            continue        status_text.empty()    progress_bar.empty()        return historical_data# === NAVIGATION FUNCTION (THÊM MỚI) ===def show_navigation():    """Enhanced navigation with Step 2 modules"""    st.sidebar.title("🚀 Crypto Investment Platform")        # Build module list    modules = ["📊 Crypto Dashboard (Step 1)"]        if step2_modules['technical']:        modules.append("📈 Technical Indicators")    if step2_modules['alerts']:        modules.append("🚨 Alerts & Notifications")    if step2_modules['portfolio']:        modules.append("💼 Portfolio Tracker")    if step2_modules['backtest']:        modules.append("🔬 Strategy Backtesting")    if step2_modules['sentiment']:        modules.append("🧠 Sentiment Analysis")    if step2_modules['indicators_engine']:        modules.append("⚙️ Indicators Engine")        selected_module = st.sidebar.selectbox("Choose Module", modules)        # Module status    available_count = sum(step2_modules.values())    st.sidebar.markdown("---")    st.sidebar.markdown("### 📋 Platform Status")    st.sidebar.success(f"✅ Step 1: Crypto Dashboard")        if available_count == 6:        st.sidebar.success(f"🚀 Step 2: {available_count}/6 modules ready")    else:        st.sidebar.info(f"⏳ Step 2: {available_count}/6 modules loading...")        if available_count < 6:        missing_modules = [k for k, v in step2_modules.items() if not v]        st.sidebar.warning(f"📦 Loading: {', '.join(missing_modules)}")        return selected_module# === MODIFIED MAIN FUNCTION ===def main():    """Main function with Step 1 + Step 2 integration"""        # Navigation    selected_module = show_navigation()        # Route to appropriate module    if selected_module == "📊 Crypto Dashboard (Step 1)":        show_crypto_dashboard()  # Your existing main function renamed            elif selected_module == "📈 Technical Indicators" and step2_modules['technical']:        show_technical_dashboard()            elif selected_module == "🚨 Alerts & Notifications" and step2_modules['alerts']:        show_alerts_dashboard()            elif selected_module == "💼 Portfolio Tracker" and step2_modules['portfolio']:        show_portfolio_dashboard()            elif selected_module == "🔬 Strategy Backtesting" and step2_modules['backtest']:        show_backtest_dashboard()            elif selected_module == "🧠 Sentiment Analysis" and step2_modules['sentiment']:        show_sentiment_dashboard()        elif selected_module == "⚙️ Indicators Engine" and step2_modules.get('indicators_engine'):        show_indicators_engine_dashboard()        else:        st.error("❌ Module not available yet")        st.info("💡 This module is being deployed. Please refresh in a moment!")# === YOUR EXISTING MAIN FUNCTION (RENAMED) ===def show_crypto_dashboard():    """Main dashboard function với error handling"""        # Initialize    universe_df = pd.DataFrame()        # Load data từ Tier1_Real_Time sheet    try:        spreadsheet_url = st.secrets.get("gsheet_url", "")        if spreadsheet_url:            from data_access import get_tier1_realtime_data            universe_df = get_tier1_realtime_data(spreadsheet_url)                        if not universe_df.empty:                # Save to session state                st.session_state.universe_df = universe_df                st.session_state.spreadsheet_url = spreadsheet_url                                st.info(f"📊 Loaded {len(universe_df)} coins from Tier1_Real_Time")                                # Debug info                with st.expander("🔍 Debug - Column Info"):                    st.write("**Available columns:**", list(universe_df.columns))                    st.write("**DataFrame shape:**", universe_df.shape)                    if len(universe_df) > 0:                        st.write("**First row:**", universe_df.iloc[0].to_dict())    except Exception as e:        st.error(f"❌ Error loading Tier1 data: {e}")    # Safe metrics calculation    total_coins = 0    total_mcap = 0    avg_change = 0        if not universe_df.empty:        try:            # Count coins            total_coins = len(universe_df)                        # Market cap - try different column names            mcap_value = 0            for col in ['Market_Cap', 'market_cap', 'Market Cap', 'marketcap']:                if col in universe_df.columns:                    mcap_value = pd.to_numeric(universe_df[col], errors='coerce').fillna(0).sum()                    break            total_mcap = mcap_value                        # Change 24h - try different column names              change_value = 0            for col in ['Change_24h', 'change_24h', 'Change 24h', 'price_change_24h']:                if col in universe_df.columns:                    change_value = pd.to_numeric(universe_df[col], errors='coerce').fillna(0).mean()                    break            avg_change = change_value                        # Symbols for session state            symbols = []            for col in ['Symbol', 'symbol', 'ticker', 'coin']:                if col in universe_df.columns:                    symbols = universe_df[col].tolist()                    break            st.session_state["last_universe"] = set(symbols)                    except Exception as e:            st.error(f"❌ Error calculating metrics: {e}")            st.session_state["last_universe"] = set()    else:        st.session_state["last_universe"] = set()    # Display header với timestamp    current_time = datetime.now().strftime("%H:%M:%S")  # ← Fix datetime    st.markdown(f"""    ### 💎 Tier 1 Crypto Universe Overview    **Last updated:** {current_time}    """)    # Display metrics    col1, col2, col3 = st.columns(3)        with col1:        st.metric(            label="Total Coins",            value=total_coins,            help="Number of Tier 1 cryptocurrencies tracked"        )        with col2:        if total_mcap > 1000000000000:  # > 1T            mcap_display = f"${total_mcap/1000000000000:.2f}T"        elif total_mcap > 1000000000:  # > 1B            mcap_display = f"${total_mcap/1000000000:.2f}B"        else:            mcap_display = f"${total_mcap:,.0f}"                    st.metric(            label="Total Market Cap",            value=mcap_display,            help="Combined market capitalization of all Tier 1 coins"        )        with col3:        change_color = "normal"        if avg_change > 0:            change_color = "normal"        elif avg_change < 0:            change_color = "inverse"                    st.metric(            label="Avg 24h Change",            value=f"{avg_change:.2f}%",            help="Average 24-hour price change across all Tier 1 coins"        )    # Preview data table    if not universe_df.empty:        with st.expander("📋 Preview Tier1 Data"):            st.dataframe(                universe_df.head(10),                use_container_width=True,                hide_index=True            )        # Action buttons    st.markdown("---")    col1, col2, col3 = st.columns(3)        with col1:        if st.button("🔄 Refresh Data from Live Sources"):            try:                live_df = fetch_live_tier1_data()                if not live_df.empty:                    st.session_state.live_df = live_df                    st.success(f"✅ Fetched live data for {len(live_df)} coins")                    with st.expander("📊 Live Data Preview"):                        st.dataframe(live_df.head())                else:                    st.error("❌ No live data fetched")            except Exception as e:                st.error(f"❌ Error refreshing data: {e}")        with col2:        if st.button("📤 Update Google Sheet"):            try:                if 'live_df' in st.session_state:                    from data_access import append_live_data_to_tier1                    spreadsheet_url = st.session_state.get('spreadsheet_url', '')                    if spreadsheet_url:                        success = append_live_data_to_tier1(st.session_state.live_df, spreadsheet_url)                        if success:                            st.success("✅ Data updated successfully!")                            st.balloons()                    else:                        st.error("❌ No spreadsheet URL found")                else:                    st.error("❌ No live data to update. Please refresh data first.")            except Exception as e:                st.error(f"❌ Error updating sheet: {e}")        with col3:        if st.button("🔧 Test Google Sheets Connection"):            try:                from data_access import get_google_sheets_client                client = get_google_sheets_client()                if client:                    st.success("✅ Google Sheets connection successful!")                    spreadsheet_url = st.secrets.get("gsheet_url", "")                    if spreadsheet_url:                        sheet = client.open_by_url(spreadsheet_url)                        st.success(f"✅ Spreadsheet opened: {sheet.title}")                        try:                            worksheet = sheet.worksheet("Tier1_Real_Time")                            data = worksheet.get_all_records()                            st.success(f"✅ Data loaded from Tier1_Real_Time: {len(data)} rows")                        except Exception as e:                            st.error(f"❌ Cannot read Tier1_Real_Time sheet: {e}")                else:                    st.error("❌ Failed to create Google Sheets client")            except Exception as e:                st.error(f"❌ Test failed: {e}")# Force reload modulesimport importlibimport sysdef force_reload_modules():    """Force reload all Step 2 modules"""    modules_to_reload = [        'modules.technical_indicators',        'modules.alerts_notifications',         'modules.backtest_strategy'    ]        for module_name in modules_to_reload:        if module_name in sys.modules:            importlib.reload(sys.modules[module_name])# Import Step 2 modules with force reloadif st.sidebar.button("🔄 Force Reload Modules"):    force_reload_modules()    st.rerun()# Load data from Google Sheetsdf_universe = load_tier1_universe_from_gsheet(spreadsheet_url)# === RUN APP ===if __name__ == "__main__":    main()# Thêm vào sidebar hoặc main area:if st.button("🔧 Test Google Sheets Connection"):    try:        from data_access import get_google_sheets_client        client = get_google_sheets_client()        if client:            st.success("✅ Google Sheets connection successful!")                        # Test mở spreadsheet            spreadsheet_url = st.secrets.get("gsheet_url", "")            if spreadsheet_url:                sheet = client.open_by_url(spreadsheet_url)                st.success(f"✅ Spreadsheet opened: {sheet.title}")                                # Test đọc data từ Tier1_Real_Time (không phải sheet đầu tiên)                try:                    worksheet = sheet.worksheet("Tier1_Real_Time")  # ← Sửa ở đây                    data = worksheet.get_all_records()                    st.success(f"✅ Data loaded from Tier1_Real_Time: {len(data)} rows")                except Exception as e:                    st.error(f"❌ Cannot read Tier1_Real_Time sheet: {e}")                            else:                st.error("❌ No spreadsheet URL in secrets")        else:            st.error("❌ Failed to create Google Sheets client")    except Exception as e:        st.error(f"❌ Test failed: {str(e)}")        # Sửa button để dùng session state:if st.button("🔄 Manual Update Tier1_Real_Time Sheet"):    try:        from data_access import update_tier1_realtime_full                # Lấy data từ session state        if 'universe_df' in st.session_state and 'spreadsheet_url' in st.session_state:            universe_df = st.session_state.universe_df            spreadsheet_url = st.session_state.spreadsheet_url                        if not universe_df.empty:                st.info(f"📤 Updating sheet with {len(universe_df)} rows...")                                # Debug info                st.write("**Data info before update:**")                st.write(f"Type: {type(universe_df)}")                st.write(f"Shape: {universe_df.shape}")                st.write(f"Columns: {list(universe_df.columns)}")                                # Try update                success = update_tier1_realtime_full(universe_df, spreadsheet_url)                if success:                    st.success("✅ Manual update successful!")                else:                    st.error("❌ Manual update failed!")            else:                st.error("❌ DataFrame is empty")        else:            st.error("❌ No data found in session. Please refresh page to load data first.")    except Exception as e:        st.error(f"❌ Manual update error: {str(e)}")def fetch_live_tier1_data():    """Fetch live data for Tier1 coins từ CoinGecko/Binance"""    try:        # Danh sách Tier1 coins (có thể lấy từ Google Sheet hoặc hardcode)        tier1_coins = [            "bitcoin", "ethereum", "cardano", "solana", "binancecoin",            "ripple", "polkadot", "chainlink", "litecoin", "avalanche-2",            "polygon", "shiba-inu", "dogecoin", "stellar", "bitcoin-cash"        ]                st.info(f"🔄 Fetching live prices for {len(tier1_coins)} Tier1 coins...")                # Fetch prices từ CoinGecko/Binance        price_data = fetch_current_prices(tier1_coins)                # Convert to DataFrame format giống Google Sheet        rows = []        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")                for rank, coin_id in enumerate(tier1_coins, 1):            if coin_id in price_data:                data = price_data[coin_id]                                # Map coin_id to symbol và name                symbol_map = {                    "bitcoin": ("BTC", "Bitcoin"),                    "ethereum": ("ETH", "Ethereum"),                    "cardano": ("ADA", "Cardano"),                    "solana": ("SOL", "Solana"),                    "binancecoin": ("BNB", "BNB"),                    "ripple": ("XRP", "XRP"),                    "polkadot": ("DOT", "Polkadot"),                    "chainlink": ("LINK", "Chainlink"),                    "litecoin": ("LTC", "Litecoin"),                    "avalanche-2": ("AVAX", "Avalanche")                }                                symbol, name = symbol_map.get(coin_id, (coin_id.upper(), coin_id.title()))                                row = {                    "Symbol": symbol,                    "Name": name,                    "Price": data.get("current_price", 0),                    "Market_Cap": data.get("market_cap", 0),                    "Change_24h": data.get("price_change_24h", 0),                    "Change_7d": 0,  # Placeholder                    "Change_30d": 0,  # Placeholder                    "Volume_24h": 0,  # Placeholder                    "Rank": rank,                    "Source": "CoinGecko",                    "Last_Updated": current_time                }                rows.append(row)                df = pd.DataFrame(rows)        st.success(f"✅ Fetched live data for {len(df)} coins")        return df            except Exception as e:        st.error(f"❌ Error fetching live data: {e}")        return pd.DataFrame()# Thêm Refresh Data button mới:if st.button("🔄 Refresh Data from Live Sources"):    try:        # Fetch live data        live_df = fetch_live_tier1_data()                if not live_df.empty:            # Save to session state            st.session_state.live_df = live_df            st.session_state.spreadsheet_url = st.secrets.get("gsheet_url", "")                        # Show preview            with st.expander("📊 Live Data Preview"):                st.dataframe(live_df)                        # Option to append to Google Sheet            if st.button("📤 Append Live Data to Google Sheet"):                from data_access import append_live_data_to_tier1                spreadsheet_url = st.session_state.spreadsheet_url                                if spreadsheet_url:                    success = append_live_data_to_tier1(live_df, spreadsheet_url)                    if success:                        st.success("✅ Live data appended successfully!")                        st.balloons()                    else:                        st.error("❌ Failed to append live data")                else:                    st.error("❌ No spreadsheet URL found")        else:            st.error("❌ No live data fetched")                except Exception as e:        st.error(f"❌ Error refreshing data: {str(e)}")def get_safe_column_data(df, target_patterns, default_value=0, operation='sum'):    """Get data from DataFrame with safe column name matching"""    if df.empty:        return default_value        # Find matching column    for pattern in target_patterns:        for col in df.columns:            if pattern.lower() in col.lower():                try:                    if operation == 'sum':                        return pd.to_numeric(df[col], errors='coerce').fillna(0).sum()                    elif operation == 'mean':                        return pd.to_numeric(df[col], errors='coerce').fillna(0).mean()                    elif operation == 'list':                        return df[col].tolist()                    elif operation == 'count':                        return len(df[col])                    else:                        return df[col]                except Exception as e:                    st.error(f"Error processing column {col}: {e}")                    continue        # Not found    st.warning(f"⚠️ Columns {target_patterns} not found in: {list(df.columns)}")    return default_value if operation != 'list' else []# Sử dụng trong show_crypto_dashboard():def show_crypto_dashboard():    """Main dashboard function với error handling"""        # Initialize    universe_df = pd.DataFrame()        # Load data từ Tier1_Real_Time sheet    try:        spreadsheet_url = st.secrets.get("gsheet_url", "")        if spreadsheet_url:            from data_access import get_tier1_realtime_data            universe_df = get_tier1_realtime_data(spreadsheet_url)                        if not universe_df.empty:                # Save to session state                st.session_state.universe_df = universe_df                st.session_state.spreadsheet_url = spreadsheet_url                                st.info(f"📊 Loaded {len(universe_df)} coins from Tier1_Real_Time")                                # Debug info                with st.expander("🔍 Debug - Column Info"):                    st.write("**Available columns:**", list(universe_df.columns))                    st.write("**DataFrame shape:**", universe_df.shape)                    if len(universe_df) > 0:                        st.write("**First row:**", universe_df.iloc[0].to_dict())    except Exception as e:        st.error(f"❌ Error loading Tier1 data: {e}")    # Safe metrics calculation    total_coins = 0    total_mcap = 0    avg_change = 0        if not universe_df.empty:        try:            # Count coins            total_coins = len(universe_df)                        # Market cap - try different column names            mcap_value = 0            for col in ['Market_Cap', 'market_cap', 'Market Cap', 'marketcap']:                if col in universe_df.columns:                    mcap_value = pd.to_numeric(universe_df[col], errors='coerce').fillna(0).sum()                    break            total_mcap = mcap_value                        # Change 24h - try different column names              change_value = 0            for col in ['Change_24h', 'change_24h', 'Change 24h', 'price_change_24h']:                if col in universe_df.columns:                    change_value = pd.to_numeric(universe_df[col], errors='coerce').fillna(0).mean()                    break            avg_change = change_value                        # Symbols for session state            symbols = []            for col in ['Symbol', 'symbol', 'ticker', 'coin']:                if col in universe_df.columns:                    symbols = universe_df[col].tolist()                    break            st.session_state["last_universe"] = set(symbols)                    except Exception as e:            st.error(f"❌ Error calculating metrics: {e}")            st.session_state["last_universe"] = set()    else:        st.session_state["last_universe"] = set()    # Display header với timestamp    current_time = datetime.now().strftime("%H:%M:%S")  # ← Fix datetime    st.markdown(f"""    ### 💎 Tier 1 Crypto Universe Overview    **Last updated:** {current_time}    """)    # Display metrics    col1, col2, col3 = st.columns(3)        with col1:        st.metric(            label="Total Coins",            value=total_coins,            help="Number of Tier 1 cryptocurrencies tracked"        )        with col2:        if total_mcap > 1000000000000:  # > 1T            mcap_display = f"${total_mcap/1000000000000:.2f}T"        elif total_mcap > 1000000000:  # > 1B            mcap_display = f"${total_mcap/1000000000:.2f}B"        else:            mcap_display = f"${total_mcap:,.0f}"                    st.metric(            label="Total Market Cap",            value=mcap_display,            help="Combined market capitalization of all Tier 1 coins"        )        with col3:        change_color = "normal"        if avg_change > 0:            change_color = "normal"        elif avg_change < 0:            change_color = "inverse"                    st.metric(            label="Avg 24h Change",            value=f"{avg_change:.2f}%",            help="Average 24-hour price change across all Tier 1 coins"        )    # Preview data table    if not universe_df.empty:        with st.expander("📋 Preview Tier1 Data"):            st.dataframe(                universe_df.head(10),                use_container_width=True,                hide_index=True            )        # Action buttons    st.markdown("---")    col1, col2, col3 = st.columns(3)        with col1:        if st.button("🔄 Refresh Data from Live Sources"):            try:                live_df = fetch_live_tier1_data()                if not live_df.empty:                    st.session_state.live_df = live_df                    st.success(f"✅ Fetched live data for {len(live_df)} coins")                    with st.expander("📊 Live Data Preview"):                        st.dataframe(live_df.head())                else:                    st.error("❌ No live data fetched")            except Exception as e:                st.error(f"❌ Error refreshing data: {e}")        with col2:        if st.button("📤 Update Google Sheet"):            try:                if 'live_df' in st.session_state:                    from data_access import append_live_data_to_tier1                    spreadsheet_url = st.session_state.get('spreadsheet_url', '')                    if spreadsheet_url:                        success = append_live_data_to_tier1(st.session_state.live_df, spreadsheet_url)                        if success:                            st.success("✅ Data updated successfully!")                            st.balloons()                    else:                        st.error("❌ No spreadsheet URL found")                else:                    st.error("❌ No live data to update. Please refresh data first.")            except Exception as e:                st.error(f"❌ Error updating sheet: {e}")        with col3:        if st.button("🔧 Test Google Sheets Connection"):            try:                from data_access import get_google_sheets_client                client = get_google_sheets_client()                if client:                    st.success("✅ Google Sheets connection successful!")                    spreadsheet_url = st.secrets.get("gsheet_url", "")                    if spreadsheet_url:                        sheet = client.open_by_url(spreadsheet_url)                        st.success(f"✅ Spreadsheet opened: {sheet.title}")                        try:                            worksheet = sheet.worksheet("Tier1_Real_Time")                            data = worksheet.get_all_records()                            st.success(f"✅ Data loaded from Tier1_Real_Time: {len(data)} rows")                        except Exception as e:                            st.error(f"❌ Cannot read Tier1_Real_Time sheet: {e}")                else:                    st.error("❌ Failed to create Google Sheets client")            except Exception as e:                st.error(f"❌ Test failed: {e}")# Force reload modulesimport importlibimport sysdef force_reload_modules():    """Force reload all Step 2 modules"""    modules_to_reload = [        'modules.technical_indicators',        'modules.alerts_notifications',         'modules.backtest_strategy'    ]        for module_name in modules_to_reload:        if module_name in sys.modules:            importlib.reload(sys.modules[module_name])# Import Step 2 modules with force reloadif st.sidebar.button("🔄 Force Reload Modules"):    force_reload_modules()    st.rerun()# Load data from Google Sheetsdf_universe = load_tier1_universe_from_gsheet(spreadsheet_url)# === RUN APP ===if __name__ == "__main__":    main()# Thêm vào sidebar hoặc main area:if st.button("🔧 Test Google Sheets Connection"):    try:        from data_access import get_google_sheets_client        client = get_google_sheets_client()        if client:            st.success("✅ Google Sheets connection successful!")                        # Test mở spreadsheet            spreadsheet_url = st.secrets.get("gsheet_url", "")            if spreadsheet_url:                sheet = client.open_by_url(spreadsheet_url)                st.success(f"✅ Spreadsheet opened: {sheet.title}")                                # Test đọc data từ Tier1_Real_Time (không phải sheet đầu tiên)                try:                    worksheet = sheet.worksheet("Tier1_Real_Time")  # ← Sửa ở đây                    data = worksheet.get_all_records()                    st.success(f"✅ Data loaded from Tier1_Real_Time: {len(data)} rows")                except Exception as e:                    st.error(f"❌ Cannot read Tier1_Real_Time sheet: {e}")                            else:                st.error("❌ No spreadsheet URL in secrets")        else:            st.error("❌ Failed to create Google Sheets client")    except Exception as e:        st.error(f"❌ Test failed: {str(e)}")        # Sửa button để dùng session state:if st.button("🔄 Manual Update Tier1_Real_Time Sheet"):    try:        from data_access import update_tier1_realtime_full                # Lấy data từ session state        if 'universe_df' in st.session_state and 'spreadsheet_url' in st.session_state:            universe_df = st.session_state.universe_df            spreadsheet_url = st.session_state.spreadsheet_url                        if not universe_df.empty:                st.info(f"📤 Updating sheet with {len(universe_df)} rows...")                                # Debug info                st.write("**Data info before update:**")                st.write(f"Type: {type(universe_df)}")                st.write(f"Shape: {universe_df.shape}")                st.write(f"Columns: {list(universe_df.columns)}")                                # Try update                success = update_tier1_realtime_full(universe_df, spreadsheet_url)                if success:                    st.success("✅ Manual update successful!")                else:                    st.error("❌ Manual update failed!")            else:                st.error("❌ DataFrame is empty")        else:            st.error("❌ No data found in session. Please refresh page to load data first.")    except Exception as e:        st.error(f"❌ Manual update error: {str(e)}")def fetch_live_tier1_data():    """Fetch live data for Tier1 coins từ CoinGecko/Binance"""    try:        # Danh sách Tier1 coins (có thể lấy từ Google Sheet hoặc hardcode)        tier1_coins = [            "bitcoin", "ethereum", "cardano", "solana", "binancecoin",            "ripple", "polkadot", "chainlink", "litecoin", "avalanche-2",            "polygon", "shiba-inu", "dogecoin", "stellar", "bitcoin-cash"        ]                st.info(f"🔄 Fetching live prices for {len(tier1_coins)} Tier1 coins...")                # Fetch prices từ CoinGecko/Binance        price_data = fetch_current_prices(tier1_coins)                # Convert to DataFrame format giống Google Sheet        rows = []        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")                for rank, coin_id in enumerate(tier1_coins, 1):            if coin_id in price_data:                data = price_data[coin_id]                                # Map coin_id to symbol và name                symbol_map = {                    "bitcoin": ("BTC", "Bitcoin"),                    "ethereum": ("ETH", "Ethereum"),                    "cardano": ("ADA", "Cardano"),                    "solana": ("SOL", "Solana"),                    "binancecoin": ("BNB", "BNB"),                    "ripple": ("XRP", "XRP"),                    "polkadot": ("DOT", "Polkadot"),                    "chainlink": ("LINK", "Chainlink"),                    "litecoin": ("LTC", "Litecoin"),                    "avalanche-2": ("AVAX", "Avalanche")                }                                symbol, name = symbol_map.get(coin_id, (coin_id.upper(), coin_id.title()))                                row = {                    "Symbol": symbol,                    "Name": name,                    "Price": data.get("current_price", 0),                    "Market_Cap": data.get("market_cap", 0),                    "Change_24h": data.get("price_change_24h", 0),                    "Change_7d": 0,  # Placeholder                    "Change_30d": 0,  # Placeholder                    "Volume_24h": 0,  # Placeholder                    "Rank": rank,                    "Source": "CoinGecko",                    "Last_Updated": current_time                }                rows.append(row)                df = pd.DataFrame(rows)        st.success(f"✅ Fetched live data for {len(df)} coins")        return df            except Exception as e:        st.error(f"❌ Error fetching live data: {e}")        return pd.DataFrame()# Thêm Refresh Data button mới:if st.button("🔄 Refresh Data from Live Sources"):    try:        # Fetch live data        live_df = fetch_live_tier1_data()                if not live_df.empty:            # Save to session state            st.session_state.live_df = live_df            st.session_state.spreadsheet_url = st.secrets.get("gsheet_url", "")                        # Show preview            with st.expander("📊 Live Data Preview"):                st.dataframe(live_df)                        # Option to append to Google Sheet            if st.button("📤 Append Live Data to Google Sheet"):                from data_access import append_live_data_to_tier1                spreadsheet_url = st.session_state.spreadsheet_url                                if spreadsheet_url:                    success = append_live_data_to_tier1(live_df, spreadsheet_url)                    if success:                        st.success("✅ Live data appended successfully!")                        st.balloons()                    else:                        st.error("❌ Failed to append live data")                else:                    st.error("❌ No spreadsheet URL found")        else:            st.error("❌ No live data fetched")                except Exception as e:        st.error(f"❌ Error refreshing data: {str(e)}")def get_safe_column_data(df, target_patterns, default_value=0, operation='sum'):    """Get data from DataFrame with safe column name matching"""    if df.empty:        return default_value        # Find matching column    for pattern in target_patterns:        for col in df.columns:            if pattern.lower() in col.lower():                try:                    if operation == 'sum':                        return pd.to_numeric(df[col], errors='coerce').fillna(0).sum()                    elif operation == 'mean':                        return pd.to_numeric(df[col], errors='coerce').fillna(0).mean()                    elif operation == 'list':                        return df[col].tolist()                    elif operation == 'count':                        return len(df[col])                    else:                        return df[col]                except Exception as e:                    st.error(f"Error processing column {col}: {e}")                    continue        # Not found    st.warning(f"⚠️ Columns {target_patterns} not found in: {list(df.columns)}")    return default_value if operation != 'list' else []
