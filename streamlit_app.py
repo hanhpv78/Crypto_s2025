@@ -353,6 +353,24 @@ def main():
 def show_crypto_dashboard():
     """Main dashboard function"""
     
+    # Force reload modules
+    import importlib
+    import sys
+    
+    # Remove from cache if exists
+    if 'data_access' in sys.modules:
+        del sys.modules['data_access']
+    
+    # Fresh import
+    try:
+        import data_access
+        importlib.reload(data_access)
+        from data_access import get_tier1_realtime_data
+        st.success("✅ Successfully imported data_access functions")
+    except Exception as e:
+        st.error(f"❌ Import error: {e}")
+        return
+
     # Move ALL imports to the top
     try:
         from data_access import (
