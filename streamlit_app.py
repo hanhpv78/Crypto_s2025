@@ -12,7 +12,7 @@ import requests
 from typing import Dict, List, Optional
 import time
 import numpy as np
-from data_access import export_tier1_to_existing_gsheet, load_tier1_universe_from_gsheet
+#from data_access import export_tier1_to_existing_gsheet, load_tier1_universe_from_gsheet
 import json
 
 # Add modules directory to path
@@ -20,6 +20,18 @@ current_dir = os.path.dirname(__file__)
 modules_dir = os.path.join(current_dir, 'modules')
 if modules_dir not in sys.path:
     sys.path.append(modules_dir)
+
+# Import ALL data_access functions at module level
+try:
+    from data_access import (
+        get_google_sheets_client,
+        get_tier1_realtime_data,
+        export_tier1_to_existing_gsheet
+    )
+    DATA_ACCESS_IMPORTED = True
+except ImportError as e:
+    st.error(f"❌ Failed to import data_access: {e}")
+    DATA_ACCESS_IMPORTED = False
 
 # Set page config FIRST
 st.set_page_config(
@@ -352,35 +364,11 @@ def main():
 # === YOUR EXISTING MAIN FUNCTION (RENAMED) ===
 def show_crypto_dashboard():
     """Main dashboard function"""
-    
-    # Force reload modules
-    import importlib
-    import sys
-    
-    # Remove from cache if exists
-    if 'data_access' in sys.modules:
-        del sys.modules['data_access']
-    
-    # Fresh import
-    try:
-        import data_access
-        importlib.reload(data_access)
-        from data_access import get_tier1_realtime_data
-        st.success("✅ Successfully imported data_access functions")
-    except Exception as e:
-        st.error(f"❌ Import error: {e}")
-        return
 
-    # Move ALL imports to the top
-    try:
-        from data_access import (
-            get_tier1_realtime_data,
-            export_tier1_to_existing_gsheet,
-            get_google_sheets_client
-        )
-    except ImportError as e:
-        st.error(f"❌ Cannot import data_access functions: {e}")
-        st.stop()  # Stop execution if imports fail
+    # Check if imports successful
+    if not DATA_ACCESS_IMPORTED:
+        st.error("❌ Data access functions not available")
+        st.stop()
     
     # Initialize variables
     universe_df = pd.DataFrame()
