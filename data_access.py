@@ -197,3 +197,65 @@ def export_tier1_to_existing_gsheet(data, spreadsheet_url):
 def load_tier1_universe_from_gsheet(spreadsheet_url):
     """Alias for get_tier1_realtime_data"""
     return get_tier1_realtime_data(spreadsheet_url)
+
+def export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export):
+    """Append new data to Google Sheets with duplicate detection"""
+    try:
+        client = get_google_sheets_client()
+        if client is None:
+            return False
+            
+        sheet = client.open_by_url(spreadsheet_url)
+        worksheet = sheet.worksheet("Tier1_Real_Time")
+        
+        # Get existing data
+        existing_data = worksheet.get_all_records()
+        existing_df = pd.DataFrame(existing_data)
+        
+        # New data
+        new_df = pd.DataFrame(data_to_export[1:], columns=data_to_export[0])
+        
+        if existing_df.empty:
+            # Empty sheet, add headers + all data
+            all_data = [data_to_export[0]] + data_to_export[1:]
+            worksheet.update(all_data)
+            st.success(f"✅ Added {len(data_to_export[1:])} rows to empty sheet")
+        else:
+            # Check for duplicates (by symbol và timestamp)
+            if 'Symbol' in new_df.columns and 'Last_Updated' in new_df.columns:
+                # Filter out duplicates
+                new_df['timestamp_check'] = new_df['Last_Updated'].astype(str)
+                existing_df['timestamp_check'] = existing_df['Last_Updated'].astype(str)
+                
+                # Find truly new rows
+                merged = new_df.merge(
+                    existing_df[['Symbol', 'timestamp_check']], 
+                    on=['Symbol', 'timestamp_check'], 
+                    how='left', 
+                    indicator=True
+                )
+                truly_new = merged[merged['_merge'] == 'left_only']
+                
+                if not truly_new.empty:
+                    # Remove merge column
+                    truly_new = truly_new.drop(['_merge', 'timestamp_check'], axis=1)
+                    
+                    # Append only new rows
+                    new_rows = truly_new.values.tolist()
+                    worksheet.append_rows(new_rows)
+                    
+                    st.success(f"✅ Appended {len(new_rows)} new rows (filtered duplicates)")
+                    st.info(f"📊 Skipped {len(new_df) - len(new_rows)} duplicate rows")
+                else:
+                    st.warning("⚠️ All data already exists - no new rows added")
+            else:
+                # No duplicate detection, just append all
+                new_rows = new_df.values.tolist()
+                worksheet.append_rows(new_rows)
+                st.success(f"✅ Appended {len(new_rows)} rows (no duplicate check)")
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ Append failed: {e}")
+        return False

@@ -351,31 +351,45 @@ def main():
 
 # === YOUR EXISTING MAIN FUNCTION (RENAMED) ===
 def show_crypto_dashboard():
-    universe_df = pd.DataFrame()
+    """Main dashboard function"""
     
-    # Load data từ Tier1_Real_Time sheet
+    # Initialize all variables at the top
+    universe_df = pd.DataFrame()
+    spreadsheet_url = ""
+    
+    # Load data safely
     try:
-        spreadsheet_url = st.secrets.get("gsheet_url", "")
-        if spreadsheet_url:
+        # Check for gsheet_url secret
+        if "gsheet_url" in st.secrets:
+            spreadsheet_url = st.secrets["gsheet_url"]
             from data_access import get_tier1_realtime_data
             universe_df = get_tier1_realtime_data(spreadsheet_url)
+        else:
+            st.error("❌ Cannot get gsheet_url from secrets")
             
-            if not universe_df.empty:
-                # Lưu vào session state để button có thể access
-                st.session_state.universe_df = universe_df
-                st.session_state.spreadsheet_url = spreadsheet_url
-                
-                # Debug: show column names
-                st.write("**Debug - Column names:**", list(universe_df.columns))
-                st.write("**Debug - DataFrame shape:**", universe_df.shape)
-                st.write("**Debug - First row:**", universe_df.iloc[0].to_dict() if len(universe_df) > 0 else "No data")
-                
-                st.info(f"📊 Loaded {len(universe_df)} coins from Tier1_Real_Time")
-                # Hiển thị preview data
-                with st.expander("📋 Preview Tier1 Data"):
-                    st.dataframe(universe_df.head())
     except Exception as e:
-        st.error(f"❌ Error loading Tier1 data: {e}")
+        st.error(f"❌ Error loading data: {e}")
+        universe_df = pd.DataFrame()
+    
+    # Display status
+    if not universe_df.empty:
+        st.success(f"✅ Fetched {len(universe_df)} Tier 1 coins from CoinGecko")
+    else:
+        st.warning("⚠️ No data loaded - check secrets configuration")
+    
+    # Manual refresh với proper check
+    if st.sidebar.button("🔄 Refresh Data", type="primary"):
+        if not universe_df.empty and spreadsheet_url:
+            try:
+                data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
+                from data_access import export_tier1_to_existing_gsheet
+                export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
+                st.success("✅ Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheets!")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"❌ Export error: {e}")
+        else:
+            st.error("❌ No data to export or missing spreadsheet URL")
     
     # Sửa line export:
     data_to_export = []
