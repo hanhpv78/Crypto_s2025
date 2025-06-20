@@ -26,7 +26,7 @@ try:
     from data_access import (
         get_google_sheets_client,
         get_tier1_realtime_data,
-        export_tier1_to_existing_gsheet
+        export_tier1_to_existing_gsheet,
         load_tier1_universe_from_gsheet
     )
     DATA_ACCESS_IMPORTED = True
