@@ -14,6 +14,9 @@ import time
 import numpy as np
 #from data_access import export_tier1_to_existing_gsheet, load_tier1_universe_from_gsheet
 import json
+import data_access
+st.write("Functions in data_access:", [f for f in dir(data_access) if not f.startswith("_")])
+
 
 # Add modules directory to path
 current_dir = os.path.dirname(__file__)
@@ -22,13 +25,27 @@ if modules_dir not in sys.path:
     sys.path.append(modules_dir)
 
 # Import ALL data_access functions at module level
+try:
+    from data_access import (
+        get_google_sheets_client,
+        get_tier1_realtime_data,
+        export_tier1_to_existing_gsheet,
+        load_tier1_universe_from_gsheet
+    )
+    st.success("✅ Import thành công!")
+except Exception as e:
+    import traceback
+    st.error(f"❌ Import lỗi: {e}")
+    st.error(traceback.format_exc())
+    raise
+
 #try:
-from data_access import (
-    get_google_sheets_client,
-    get_tier1_realtime_data,
-    export_tier1_to_existing_gsheet,
-    load_tier1_universe_from_gsheet
-)
+#from data_access import (
+#    get_google_sheets_client,
+#    get_tier1_realtime_data,
+#    export_tier1_to_existing_gsheet,
+#    load_tier1_universe_from_gsheet
+#)
     #DATA_ACCESS_IMPORTED = True
 #except ImportError as e:
 #    st.error(f"❌ Failed to import data_access: {e}")
