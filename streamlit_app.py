@@ -353,7 +353,18 @@ def main():
 def show_crypto_dashboard():
     """Main dashboard function"""
     
-    # Initialize all variables at the top
+    # Move ALL imports to the top
+    try:
+        from data_access import (
+            get_tier1_realtime_data,
+            export_tier1_to_existing_gsheet,
+            get_google_sheets_client
+        )
+    except ImportError as e:
+        st.error(f"❌ Cannot import data_access functions: {e}")
+        st.stop()  # Stop execution if imports fail
+    
+    # Initialize variables
     universe_df = pd.DataFrame()
     spreadsheet_url = ""
     
@@ -392,7 +403,7 @@ def show_crypto_dashboard():
             st.error("❌ No data to export or missing spreadsheet URL")
     
     # Sửa line export:
-    data_to_export = []
+    # data_to_export = []
     #st.info("📊 Google Sheets temporarily disabled for debugging")
 
     
@@ -408,14 +419,7 @@ def show_crypto_dashboard():
     
     # Auto-refresh option
     auto_refresh = st.sidebar.checkbox("🔄 Auto-refresh (30s)", value=False)
-    
-    # Manual refresh
-    if st.sidebar.button("🔄 Refresh Data", type="primary"):
-        data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
-        export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
-        st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
-        st.cache_data.clear()
-        st.rerun()
+
     
     # Auto-refresh logic
     if auto_refresh:
