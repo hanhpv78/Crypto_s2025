@@ -22,17 +22,17 @@ if modules_dir not in sys.path:
     sys.path.append(modules_dir)
 
 # Import ALL data_access functions at module level
-try:
-    from data_access import (
-        get_google_sheets_client,
-        get_tier1_realtime_data,
-        export_tier1_to_existing_gsheet,
-        load_tier1_universe_from_gsheet
-    )
-    DATA_ACCESS_IMPORTED = True
-except ImportError as e:
-    st.error(f"❌ Failed to import data_access: {e}")
-    DATA_ACCESS_IMPORTED = False
+#try:
+from data_access import (
+    get_google_sheets_client,
+    get_tier1_realtime_data,
+    export_tier1_to_existing_gsheet,
+    load_tier1_universe_from_gsheet
+)
+    #DATA_ACCESS_IMPORTED = True
+#except ImportError as e:
+#    st.error(f"❌ Failed to import data_access: {e}")
+#    DATA_ACCESS_IMPORTED = False
 
 # Set page config FIRST
 st.set_page_config(
