@@ -420,20 +420,20 @@ def show_crypto_dashboard():
     # Manual refresh với proper check
     if st.sidebar.button("🔄 Refresh Data", type="primary", key="crypto_dashboard_refresh"):
     # Lấy data mới nhất từ CoinGecko/Binance/CoinBase
-    try:
-        # Giả sử bạn có hàm get_tier1_universe_from_sources()
-        # Nếu chưa có, hãy thay bằng hàm lấy data từ CoinGecko bạn đang dùng
-        fresh_df = get_tier1_universe_from_sources()  # <-- HÀM NÀY PHẢI LẤY DATA MỚI TỪ API
-        
-        if not fresh_df.empty and spreadsheet_url:
-            data_to_export = [fresh_df.columns.tolist()] + fresh_df.values.tolist()
-            export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
-            st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
-            st.cache_data.clear()
-        else:
-            st.error("Không có dữ liệu mới để export")
-    except Exception as e:
-        st.error(f"Lỗi khi lấy dữ liệu mới từ API: {e}")
+        try:
+            # Giả sử bạn có hàm get_tier1_universe_from_sources()
+            # Nếu chưa có, hãy thay bằng hàm lấy data từ CoinGecko bạn đang dùng
+            fresh_df = get_tier1_universe_from_sources()  # <-- HÀM NÀY PHẢI LẤY DATA MỚI TỪ API
+            
+            if not fresh_df.empty and spreadsheet_url:
+                data_to_export = [fresh_df.columns.tolist()] + fresh_df.values.tolist()
+                export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
+                st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
+                st.cache_data.clear()
+            else:
+                st.error("Không có dữ liệu mới để export")
+        except Exception as e:
+            st.error(f"Lỗi khi lấy dữ liệu mới từ API: {e}")
 
     # Sửa line export:
     # data_to_export = []
