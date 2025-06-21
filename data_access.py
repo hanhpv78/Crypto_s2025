@@ -4,6 +4,8 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import streamlit as st
 import requests
+import asyncio
+import aiohttp
 
 def get_google_sheets_client():
     """Kết nối Google Sheets using Streamlit secrets"""
@@ -261,7 +263,21 @@ def export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export):
         st.error(f"❌ Append failed: {e}")
         return False
 
-def fetch_coingecko_coins():
+COINGECKO_ID_TO_SYMBOL = {}
+SYMBOL_TO_COINGECKO_ID = {}
+
+# Mapping từ CoinGecko id sang symbol (bạn nên build mapping này đầy đủ)
+def build_coingecko_id_symbol_map():
+    url = "https://api.coingecko.com/api/v3/coins/list"
+    resp = requests.get(url)
+    data = resp.json()
+    return {item["id"]: item["symbol"].upper() for item in data}
+
+COINGECKO_ID_TO_SYMBOL = build_coingecko_id_symbol_map()
+SYMBOL_TO_COINGECKO_ID = {v: k for k, v in COINGECKO_ID_TO_SYMBOL.items()}
+
+# 1. Lấy danh sách coin đạt chuẩn từ CoinGecko
+def fetch_coingecko_universe(min_market_cap=2e9, min_volume=5e7):
     url = "https://api.coingecko.com/api/v3/coins/markets"
     params = {
         "vs_currency": "usd",
@@ -271,7 +287,7 @@ def fetch_coingecko_coins():
         "sparkline": False
     }
     coins = []
-    for page in range(1, 5):  # Lấy tối đa 1000 coins
+    for page in range(1, 10):  # Lấy tối đa 2500 coin
         params["page"] = page
         resp = requests.get(url, params=params)
         if resp.status_code != 200:
@@ -281,64 +297,98 @@ def fetch_coingecko_coins():
             break
         coins.extend(data)
     df = pd.DataFrame(coins)
-    if not df.empty:
-        df["source"] = "coingecko"
-    return df
-
-def fetch_binance_coins():
-    url = "https://api.binance.com/api/v3/ticker/price"
-    resp = requests.get(url)
-    if resp.status_code != 200:
-        return pd.DataFrame()
-    data = resp.json()
-    # Binance trả về cặp giao dịch, chỉ lấy symbol kết thúc bằng 'USDT'
-    coins = [item for item in data if item["symbol"].endswith("USDT")]
-    df = pd.DataFrame(coins)
-    if not df.empty:
-        df["symbol"] = df["symbol"].str.replace("USDT", "")
-        df = df.drop_duplicates("symbol")
-        df["source"] = "binance"
-    return df
-
-def fetch_coinbase_coins():
-    url = "https://api.coinbase.com/v2/currencies"
-    resp = requests.get(url)
-    if resp.status_code != 200:
-        return pd.DataFrame()
-    data = resp.json()
-    coins = data.get("data", [])
-    df = pd.DataFrame(coins)
-    if not df.empty:
-        df = df[df["details.type"] == "crypto"] if "details.type" in df.columns else df
-        df["symbol"] = df["id"]
-        df["source"] = "coinbase"
-    return df
-
-def fetch_yahoo_coins():
-    # Yahoo không có API public cho crypto, bạn có thể bỏ qua hoặc dùng danh sách mẫu
-    # Ví dụ mẫu:
-    coins = [
-        {"symbol": "BTC", "name": "Bitcoin", "source": "yahoo"},
-        {"symbol": "ETH", "name": "Ethereum", "source": "yahoo"},
+    df = df[
+        (df["market_cap"] > min_market_cap) &
+        (df["total_volume"] > min_volume)
     ]
-    return pd.DataFrame(coins)
+    df["source"] = "coingecko"
+    return df[["id", "symbol", "name", "market_cap", "total_volume", "current_price", "source"]].reset_index(drop=True)
 
+# 2. Lấy giá từ CoinGecko (async)
+async def fetch_from_coingecko(coin_ids):
+    await asyncio.sleep(1.0)
+    ids_str = ",".join(coin_ids)
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
+    headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+    }
+    timeout = aiohttp.ClientTimeout(total=20)
+    async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                result = {}
+                for coin_id in coin_ids:
+                    if coin_id in data:
+                        result[coin_id] = {
+                            "current_price": data[coin_id].get("usd", 0),
+                            "market_cap": data[coin_id].get("usd_market_cap", 0),
+                            "price_change_24h": data[coin_id].get("usd_24h_change", 0)
+                        }
+                return result
+            return {}
+
+# 3. Lấy giá từ Binance (async)
+async def fetch_from_binance(symbols):
+    url = "https://api.binance.com/api/v3/ticker/24hr"
+    timeout = aiohttp.ClientTimeout(total=15)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                result = {}
+                for symbol in symbols:
+                    for item in data:
+                        if item.get("symbol") == f"{symbol}USDT":
+                            result[symbol] = {
+                                "current_price": float(item["lastPrice"]),
+                                "market_cap": 0,
+                                "price_change_24h": float(item["priceChangePercent"])
+                            }
+                            break
+                return result
+            return {}
+
+# 4. Fallback lấy giá (async)
+async def fetch_coin_prices_with_fallback(coin_ids):
+    coingecko_prices = await fetch_from_coingecko(coin_ids)
+    missing_ids = [cid for cid in coin_ids if cid not in coingecko_prices]
+    missing_symbols = [COINGECKO_ID_TO_SYMBOL.get(cid, "").upper() for cid in missing_ids if cid in COINGECKO_ID_TO_SYMBOL]
+    binance_prices = await fetch_from_binance(missing_symbols) if missing_symbols else {}
+    final_result = coingecko_prices.copy()
+    for cid, symbol in zip(missing_ids, missing_symbols):
+        if symbol in binance_prices:
+            final_result[cid] = binance_prices[symbol]
+    return final_result
+
+# 5. Wrapper sync cho Streamlit
+def fetch_current_prices(coin_ids):
+    try:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(fetch_coin_prices_with_fallback(coin_ids))
+        return result
+    except Exception as e:
+        print(f"Error in fetch_current_prices: {e}")
+        return {}
+
+# 6. Hàm tổng hợp: lấy universe đạt chuẩn và giá mới nhất
 def get_tier1_universe_from_sources():
-    # Ưu tiên: CoinGecko > Binance > Coinbase > Yahoo
-    dfs = [
-        fetch_coingecko_coins(),
-        fetch_binance_coins(),
-        fetch_coinbase_coins(),
-        fetch_yahoo_coins()
-    ]
-    all_coins = pd.concat(dfs, ignore_index=True, sort=False)
-    # Loại bỏ trùng lặp theo symbol, giữ nguồn ưu tiên trước
-    all_coins = all_coins.drop_duplicates(subset=["symbol"], keep="first")
-    # Chọn các cột cơ bản
-    columns = [col for col in ["symbol", "name", "current_price", "source"] if col in all_coins.columns]
-    return all_coins[columns].reset_index(drop=True)
+    df = fetch_coingecko_universe()
+    coin_ids = df["id"].tolist()
+    price_data = fetch_current_prices(coin_ids)
+    # Cập nhật giá mới nhất vào DataFrame
+    df["current_price"] = df["id"].map(lambda cid: price_data.get(cid, {}).get("current_price", 0))
+    df["market_cap"] = df["id"].map(lambda cid: price_data.get(cid, {}).get("market_cap", 0))
+    df["price_change_24h"] = df["id"].map(lambda cid: price_data.get(cid, {}).get("price_change_24h", 0))
+    return df.reset_index(drop=True)
 
 # Ví dụ sử dụng:
 if __name__ == "__main__":
     df = get_tier1_universe_from_sources()
     print(df.head())
+    print(f"Tổng số coin đạt chuẩn: {len(df)}")
