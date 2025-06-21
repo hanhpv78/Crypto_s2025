@@ -467,17 +467,15 @@ def show_crypto_dashboard():
             universe_df = fetcher.create_tier1_universe()
             if universe_df is None or not isinstance(universe_df, pd.DataFrame):
                 universe_df = pd.DataFrame()
+                if isinstance(universe_df, pd.DataFrame) and not universe_df.empty:
+                    data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
+                    export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
+                    st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
+                else:
+                    st.error("Không lấy được dữ liệu Tier 1 coin.")
         except Exception as e:
             st.error(f"Lỗi khi lấy dữ liệu Tier 1: {e}")
             # universe_df = pd.DataFrame()
-
-    if isinstance(universe_df, pd.DataFrame) and not universe_df.empty:
-        data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
-        export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
-        st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
-    else:
-        st.error("Không lấy được dữ liệu Tier 1 coin.")
-
     # Store in session state for change detection
     if "last_universe" not in st.session_state:
         st.session_state["last_universe"] = set(universe_df['symbol'].tolist())
