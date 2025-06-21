@@ -16,11 +16,11 @@ import numpy as np
 import json
 import data_access
 
-st.write("DEBUG: data_access functions:", [f for f in dir(data_access) if not f.startswith("_")])
-try:
-    st.write("DEBUG: export_tier1_to_existing_gsheet:", data_access.export_tier1_to_existing_gsheet)
-except Exception as e:
-    st.error(f"DEBUG: Không tìm thấy export_tier1_to_existing_gsheet: {e}")
+#st.write("DEBUG: data_access functions:", [f for f in dir(data_access) if not f.startswith("_")])
+#try:
+#    st.write("DEBUG: export_tier1_to_existing_gsheet:", data_access.export_tier1_to_existing_gsheet)
+#except Exception as e:
+#    st.error(f"DEBUG: Không tìm thấy export_tier1_to_existing_gsheet: {e}")
 
 # Add modules directory to path
 current_dir = os.path.dirname(__file__)
@@ -400,13 +400,13 @@ def show_crypto_dashboard():
     # Load data safely
     try:
         # Check for gsheet_url secret
-        if "gsheet_url" in st.secrets:
-            spreadsheet_url = st.secrets["gsheet_url"]
+        #if "gsheet_url" in st.secrets:
+        #    spreadsheet_url = st.secrets["gsheet_url"]
             #from data_access import get_tier1_realtime_data; Data này lấy từ googlesheet chứ không phải realtime
-            # universe_df = get_tier1_universe_from_sources()
-            universe_df = get_tier1_realtime_data(spreadsheet_url)
-        else:
-            st.error("❌ Cannot get gsheet_url from secrets")
+        universe_df = get_tier1_universe_from_sources()
+        #    universe_df = get_tier1_realtime_data(spreadsheet_url)
+        #else:
+        #    st.error("❌ Cannot get gsheet_url from secrets")
             
     except Exception as e:
         st.error(f"❌ Error loading data: {e}")
@@ -422,8 +422,8 @@ def show_crypto_dashboard():
     if st.sidebar.button("🔄 Refresh Data", type="primary", key="crypto_dashboard_refresh"):
     # Lấy data mới nhất từ CoinGecko/Binance/CoinBase
         try:
-            # Giả sử bạn có hàm get_tier1_universe_from_sources()
-            # Nếu chưa có, hãy thay bằng hàm lấy data từ CoinGecko bạn đang dùng
+            
+            # Nếu lấy data từ nhiều nguồn như CoinGecko, Binance, CoinBase,...
             fresh_df = get_tier1_universe_from_sources()  # <-- HÀM NÀY PHẢI LẤY DATA MỚI TỪ API
             
             if not fresh_df.empty and spreadsheet_url:
