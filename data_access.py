@@ -297,10 +297,14 @@ def fetch_coingecko_universe(min_market_cap=2e9, min_volume=5e7):
             break
         coins.extend(data)
     df = pd.DataFrame(coins)
+    print(f"[DEBUG] Tổng số coin lấy từ CoinGecko: {len(df)}")
+    # Lọc theo market cap và volume
     df = df[
         (df["market_cap"] > min_market_cap) &
         (df["total_volume"] > min_volume)
     ]
+    print(f"[DEBUG] Số coin đạt chuẩn (market cap > 2B, volume > 50M): {len(df)}")
+    print(df)
     df["source"] = "coingecko"
     return df[["id", "symbol", "name", "market_cap", "total_volume", "current_price", "source"]].reset_index(drop=True)
 
