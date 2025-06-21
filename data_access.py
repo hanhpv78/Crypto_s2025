@@ -3,6 +3,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import streamlit as st
+import requests
 
 def get_google_sheets_client():
     """Kết nối Google Sheets using Streamlit secrets"""
@@ -259,3 +260,85 @@ def export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export):
     except Exception as e:
         st.error(f"❌ Append failed: {e}")
         return False
+
+def fetch_coingecko_coins():
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+    params = {
+        "vs_currency": "usd",
+        "order": "market_cap_desc",
+        "per_page": 250,
+        "page": 1,
+        "sparkline": False
+    }
+    coins = []
+    for page in range(1, 5):  # Lấy tối đa 1000 coins
+        params["page"] = page
+        resp = requests.get(url, params=params)
+        if resp.status_code != 200:
+            break
+        data = resp.json()
+        if not data:
+            break
+        coins.extend(data)
+    df = pd.DataFrame(coins)
+    if not df.empty:
+        df["source"] = "coingecko"
+    return df
+
+def fetch_binance_coins():
+    url = "https://api.binance.com/api/v3/ticker/price"
+    resp = requests.get(url)
+    if resp.status_code != 200:
+        return pd.DataFrame()
+    data = resp.json()
+    # Binance trả về cặp giao dịch, chỉ lấy symbol kết thúc bằng 'USDT'
+    coins = [item for item in data if item["symbol"].endswith("USDT")]
+    df = pd.DataFrame(coins)
+    if not df.empty:
+        df["symbol"] = df["symbol"].str.replace("USDT", "")
+        df = df.drop_duplicates("symbol")
+        df["source"] = "binance"
+    return df
+
+def fetch_coinbase_coins():
+    url = "https://api.coinbase.com/v2/currencies"
+    resp = requests.get(url)
+    if resp.status_code != 200:
+        return pd.DataFrame()
+    data = resp.json()
+    coins = data.get("data", [])
+    df = pd.DataFrame(coins)
+    if not df.empty:
+        df = df[df["details.type"] == "crypto"] if "details.type" in df.columns else df
+        df["symbol"] = df["id"]
+        df["source"] = "coinbase"
+    return df
+
+def fetch_yahoo_coins():
+    # Yahoo không có API public cho crypto, bạn có thể bỏ qua hoặc dùng danh sách mẫu
+    # Ví dụ mẫu:
+    coins = [
+        {"symbol": "BTC", "name": "Bitcoin", "source": "yahoo"},
+        {"symbol": "ETH", "name": "Ethereum", "source": "yahoo"},
+    ]
+    return pd.DataFrame(coins)
+
+def get_tier1_universe_from_sources():
+    # Ưu tiên: CoinGecko > Binance > Coinbase > Yahoo
+    dfs = [
+        fetch_coingecko_coins(),
+        fetch_binance_coins(),
+        fetch_coinbase_coins(),
+        fetch_yahoo_coins()
+    ]
+    all_coins = pd.concat(dfs, ignore_index=True, sort=False)
+    # Loại bỏ trùng lặp theo symbol, giữ nguồn ưu tiên trước
+    all_coins = all_coins.drop_duplicates(subset=["symbol"], keep="first")
+    # Chọn các cột cơ bản
+    columns = [col for col in ["symbol", "name", "current_price", "source"] if col in all_coins.columns]
+    return all_coins[columns].reset_index(drop=True)
+
+# Ví dụ sử dụng:
+if __name__ == "__main__":
+    df = get_tier1_universe_from_sources()
+    print(df.head())
