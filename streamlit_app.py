@@ -15,8 +15,12 @@ import numpy as np
 #from data_access import export_tier1_to_existing_gsheet, load_tier1_universe_from_gsheet
 import json
 import data_access
-st.write("Functions in data_access:", [f for f in dir(data_access) if not f.startswith("_")])
 
+st.write("DEBUG: data_access functions:", [f for f in dir(data_access) if not f.startswith("_")])
+try:
+    st.write("DEBUG: export_tier1_to_existing_gsheet:", data_access.export_tier1_to_existing_gsheet)
+except Exception as e:
+    st.error(f"DEBUG: Không tìm thấy export_tier1_to_existing_gsheet: {e}")
 
 # Add modules directory to path
 current_dir = os.path.dirname(__file__)
