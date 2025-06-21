@@ -401,7 +401,7 @@ def show_crypto_dashboard():
         # Check for gsheet_url secret
         if "gsheet_url" in st.secrets:
             spreadsheet_url = st.secrets["gsheet_url"]
-            from data_access import get_tier1_realtime_data
+            #from data_access import get_tier1_realtime_data
             universe_df = get_tier1_realtime_data(spreadsheet_url)
         else:
             st.error("❌ Cannot get gsheet_url from secrets")
@@ -421,7 +421,7 @@ def show_crypto_dashboard():
         if not universe_df.empty and spreadsheet_url:
             try:
                 data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
-                from data_access import export_tier1_to_existing_gsheet
+                #from data_access import export_tier1_to_existing_gsheet
                 export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
                 st.success("✅ Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheets!")
                 st.cache_data.clear()
