@@ -402,14 +402,15 @@ def show_crypto_dashboard():
         # Check for gsheet_url secret
         if "gsheet_url" in st.secrets:
             spreadsheet_url = st.secrets["gsheet_url"]
-            #from data_access import get_tier1_realtime_data
+            #from data_access import get_tier1_realtime_data; Data này lấy từ googlesheet chứ không phải realtime
+            # universe_df = get_tier1_universe_from_sources()
             universe_df = get_tier1_realtime_data(spreadsheet_url)
         else:
             st.error("❌ Cannot get gsheet_url from secrets")
             
     except Exception as e:
         st.error(f"❌ Error loading data: {e}")
-        universe_df = pd.DataFrame()
+        # universe_df = pd.DataFrame()
     
     # Display status
     if not universe_df.empty:
@@ -436,7 +437,7 @@ def show_crypto_dashboard():
             st.error(f"Lỗi khi lấy dữ liệu mới từ API: {e}")
 
     # Sửa line export:
-    # data_to_export = []
+    data_to_export = []
     #st.info("📊 Google Sheets temporarily disabled for debugging")
 
     
@@ -468,7 +469,7 @@ def show_crypto_dashboard():
                 universe_df = pd.DataFrame()
         except Exception as e:
             st.error(f"Lỗi khi lấy dữ liệu Tier 1: {e}")
-            universe_df = pd.DataFrame()
+            # universe_df = pd.DataFrame()
 
     if isinstance(universe_df, pd.DataFrame) and not universe_df.empty:
         data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
@@ -720,14 +721,14 @@ def show_crypto_dashboard():
     """)
 
     # Export data to Google Sheets
-    try:
+    # try:
         ##spreadsheet_url = "https://docs.google.com/spreadsheets/d/xxxxxx/edit#gid=0"  # Thay bằng URL thật hoặc lấy từ st.secrets
-        data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
+    #    data_to_export = [universe_df.columns.tolist()] + universe_df.values.tolist()
         
-        export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
-        st.success("✅ Đã xuất dữ liệu lên Google Sheets thành công!")
-    except Exception as e:
-        st.error(f"❌ Lỗi xuất dữ liệu lên Google Sheets: {str(e)}")
+    #    export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
+    #    st.success("✅ Đã xuất dữ liệu lên Google Sheets thành công!")
+    # except Exception as e:
+    #    st.error(f"❌ Lỗi xuất dữ liệu lên Google Sheets: {str(e)}")
 
 # Force reload modules
 import importlib
