@@ -187,7 +187,7 @@ class TierOnePriceFetcher:
                 df = pd.DataFrame(tier1_data)
                 df = df.sort_values('rank').reset_index(drop=True)
                 
-                st.success(f"✅ Fetched {len(df)} Tier 1 coins from CoinGecko")
+                st.success(f"✅ Fetched {len(df)} Tier 1 coins from CoinGecko in CreateTier1Universe")
                 return df
             
             else:
@@ -414,7 +414,7 @@ def show_crypto_dashboard():
     
     # Display status
     if not universe_df.empty:
-        st.success(f"✅ Fetched {len(universe_df)} Tier 1 coins from CoinGecko")
+        st.success(f"✅ Fetched {len(universe_df)} Tier 1 coins from CoinGecko in Show_CryptoDashboard")
     else:
         st.warning("⚠️ No data loaded - check secrets configuration")
     
