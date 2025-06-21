@@ -32,7 +32,7 @@ if modules_dir not in sys.path:
 try:
     from data_access import (
         get_google_sheets_client,
-        get_tier1_realtime_data,
+        get_tier1_googlesheet_data,
         export_tier1_to_existing_gsheet,
         load_tier1_universe_from_gsheet,
         get_tier1_universe_from_sources
@@ -44,17 +44,6 @@ except Exception as e:
     st.error(traceback.format_exc())
     raise
 
-#try:
-#from data_access import (
-#    get_google_sheets_client,
-#    get_tier1_realtime_data,
-#    export_tier1_to_existing_gsheet,
-#    load_tier1_universe_from_gsheet
-#)
-    #DATA_ACCESS_IMPORTED = True
-#except ImportError as e:
-#    st.error(f"❌ Failed to import data_access: {e}")
-#    DATA_ACCESS_IMPORTED = False
 
 # Set page config FIRST
 st.set_page_config(
@@ -402,9 +391,9 @@ def show_crypto_dashboard():
         # Check for gsheet_url secret
         #if "gsheet_url" in st.secrets:
         #    spreadsheet_url = st.secrets["gsheet_url"]
-            #from data_access import get_tier1_realtime_data; Data này lấy từ googlesheet chứ không phải realtime
+            #from data_access import get_tier1_googlesheet_data; Data này lấy từ googlesheet chứ không phải realtime
         universe_df = get_tier1_universe_from_sources()
-        #    universe_df = get_tier1_realtime_data(spreadsheet_url)
+        #    universe_df = get_tier1_googlesheet_data(spreadsheet_url)
         #else:
         #    st.error("❌ Cannot get gsheet_url from secrets")
             
