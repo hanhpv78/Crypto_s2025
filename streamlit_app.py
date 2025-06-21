@@ -393,7 +393,7 @@ def show_crypto_dashboard():
         #    spreadsheet_url = st.secrets["gsheet_url"]
             #from data_access import get_tier1_googlesheet_data; Data này lấy từ googlesheet chứ không phải realtime
         universe_df = get_tier1_universe_from_sources()
-        st.error(f" Get data from CoinGecko, Binance, ... Source: {e}")
+        st.success(f" Get data from CoinGecko, Binance, ... Source: {e}")
         #    universe_df = get_tier1_googlesheet_data(spreadsheet_url)
         #else:
         #    st.error("❌ Cannot get gsheet_url from secrets")
