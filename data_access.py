@@ -29,7 +29,7 @@ def get_google_sheets_client():
         st.error(f"❌ Google Sheets connection failed: {str(e)}")
         return None
 
-def get_tier1_realtime_data(spreadsheet_url):
+def get_tier1_googlesheet_data(spreadsheet_url):
     """Load data from Tier1_Real_Time sheet"""
     try:
         client = get_google_sheets_client()
@@ -54,7 +54,7 @@ def get_tier1_realtime_data(spreadsheet_url):
             st.warning("⚠️ No data found in Tier1_Real_Time sheet")
             return pd.DataFrame()
             
-        st.success(f"✅ Loaded {len(df)} rows from Tier1_Real_Time sheet")
+        st.success(f"✅ Loaded {len(df)} rows from Tier1_Real_Time @google sheet")
         return df
         
     except Exception as e:
@@ -188,16 +188,16 @@ def append_live_data_to_tier1(new_df, spreadsheet_url):
 
 # Backward compatibility - giữ tên cũ
 def get_universe_data(spreadsheet_url):
-    """Alias for get_tier1_realtime_data"""
-    return get_tier1_realtime_data(spreadsheet_url)
+    """Alias for get_tier1_googlesheet_data"""
+    return get_tier1_googlesheet_data(spreadsheet_url)
 
 def export_tier1_to_existing_gsheet(data, spreadsheet_url):
     """Alias for update_tier1_realtime_full"""
     return update_tier1_realtime_full(data, spreadsheet_url)
 
 def load_tier1_universe_from_gsheet(spreadsheet_url):
-    """Alias for get_tier1_realtime_data"""
-    return get_tier1_realtime_data(spreadsheet_url)
+    """Alias for get_tier1_googlesheet_data"""
+    return get_tier1_googlesheet_data(spreadsheet_url)
 
 def export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export):
     """Append new data to Google Sheets with duplicate detection"""
