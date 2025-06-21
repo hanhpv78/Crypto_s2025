@@ -393,6 +393,7 @@ def show_crypto_dashboard():
         #    spreadsheet_url = st.secrets["gsheet_url"]
             #from data_access import get_tier1_googlesheet_data; Data này lấy từ googlesheet chứ không phải realtime
         universe_df = get_tier1_universe_from_sources()
+        st.error(f" Get data from CoinGecko, Binance, ... Source: {e}")
         #    universe_df = get_tier1_googlesheet_data(spreadsheet_url)
         #else:
         #    st.error("❌ Cannot get gsheet_url from secrets")
@@ -413,7 +414,7 @@ def show_crypto_dashboard():
             st.info("Bắt đầu lấy dữ liệu mới từ các nguồn API...")
             fresh_df = get_tier1_universe_from_sources()
             st.write("DEBUG: fresh_df shape:", fresh_df.shape)
-            st.write("DEBUG: fresh_df head:", fresh_df.head())
+            st.write("DEBUG: fresh_df head(20):", fresh_df.head(20))
             st.write("DEBUG: fresh_df columns:", fresh_df.columns.tolist())
             st.write("DEBUG: fresh_df dtypes:", fresh_df.dtypes)
 
@@ -423,7 +424,7 @@ def show_crypto_dashboard():
                 data_to_export = [fresh_df.columns.tolist()] + fresh_df.values.tolist()
                 st.write("DEBUG: data_to_export (first 2 rows):", data_to_export[:2])
                 export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
-                st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
+                st.success("Đã lưu danh sách coin Tier 1 từ CoinGecko, Binance, ... mới nhất lên Google Sheet!")
                 st.cache_data.clear()
             else:
                 st.error("Không có dữ liệu mới để export")
