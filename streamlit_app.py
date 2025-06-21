@@ -409,21 +409,28 @@ def show_crypto_dashboard():
     
     # Manual refresh với proper check
     if st.sidebar.button("🔄 Refresh Data", type="primary", key="crypto_dashboard_refresh"):
-    # Lấy data mới nhất từ CoinGecko/Binance/CoinBase
         try:
-            
-            # Nếu lấy data từ nhiều nguồn như CoinGecko, Binance, CoinBase,...
-            fresh_df = get_tier1_universe_from_sources()  # <-- HÀM NÀY PHẢI LẤY DATA MỚI TỪ API
-            
+            st.info("Bắt đầu lấy dữ liệu mới từ các nguồn API...")
+            fresh_df = get_tier1_universe_from_sources()
+            st.write("DEBUG: fresh_df shape:", fresh_df.shape)
+            st.write("DEBUG: fresh_df head:", fresh_df.head())
+            st.write("DEBUG: fresh_df columns:", fresh_df.columns.tolist())
+            st.write("DEBUG: fresh_df dtypes:", fresh_df.dtypes)
+
             if not fresh_df.empty and spreadsheet_url:
+                # Xử lý NaN để tránh lỗi khi export
+                fresh_df = fresh_df.fillna("")
                 data_to_export = [fresh_df.columns.tolist()] + fresh_df.values.tolist()
+                st.write("DEBUG: data_to_export (first 2 rows):", data_to_export[:2])
                 export_tier1_to_existing_gsheet(spreadsheet_url, data_to_export)
                 st.success("Đã lưu danh sách coin Tier 1 mới nhất lên Google Sheet!")
                 st.cache_data.clear()
             else:
                 st.error("Không có dữ liệu mới để export")
         except Exception as e:
+            import traceback
             st.error(f"Lỗi khi lấy dữ liệu mới từ API: {e}")
+            st.error(traceback.format_exc())
 
     # Sửa line export:
     data_to_export = []
